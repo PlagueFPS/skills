@@ -1,98 +1,206 @@
 ---
 name: effect
-description: |
-  Opinionated guide for building production TypeScript applications with Effect v4. Use when implementing Effect workflows, services, layers, schemas, configuration, schedules, caches, streams, HTTP clients, or tests.
-license: MIT
-compatibility: Requires Effect v4. Examples are reviewed against the version documented in this repository.
+description: Guidelines for writing Effect-TS code. Apply when editing or reviewing Effect code.
 ---
 
-# Effect
+# Effect Code Guidelines
 
-Use current Effect v4 APIs and the production defaults in this skill. Established project conventions still take precedence unless the task is explicitly changing them.
+## Creating Effectful functions
+Prefer using `Effect.fnUntraced` over `Effect.gen` for untraced construction, and use `Effect.fn` for traced construction when observability is important and squeezing out the 
+most performance isn't neccessary.
 
-## Source Rule
+```typescript
+// ❌ BAD
+const foo = (input: string) = Effect.gen(function*() {
+	const myService = yield* Service
+	const result = yield* myService.doWork(input)
+	return result
+})
 
-Check these before guessing:
+// ✅ GOOD
+const foo = Effect.fnUntraced(function*(input: string) {
+	const myService = yield* Service
+	const result = yield* myService.doWork(input)
+	return result
+})
 
-- the nearest `AGENTS.md` and any project-local Effect practices doc
-- the project-pinned `effect` package source and version
-- current upstream Effect source when the installed package does not answer the question
+// OR - when tracing is requested/needed
+const foo = Effect.fn("foo")(function*(input: string){
+	const myService = yield* Service
+	const result = yield* myService.doWork(input)
+	return result
+})
+```
 
-## Branch Chooser
+### When `Effect.gen` is appropriate
+Use `Effect.gen` for service constructors that do not require any parameters.
 
-Read only the branch references that match the task.
+```typescript
+class MyService extends Context.Service<MyService>()("UniqueServiceKey") {
+	make: Effect.gen(function*() {
+		// Default implementation
+	}),
+}
+```
 
-- Data models, schemas, brands, variants, optional keys, or decoders: read `references/SCHEMA.md`.
-- Services, module surfaces, layers, runtime wiring, errors, `Effect.fn`, or test services: read `references/SERVICES_LAYERS.md`.
-- Runtime config, env variables, `ConfigProvider`, or `layerConfig`: read `references/CONFIG.md`.
-- Retry, repeat, polling, backoff, jitter, rate-limit-aware policies, or pass loops: read `references/SCHEDULING.md`.
-- Memoization, per-key TTL caches, deduplicating concurrent lookups, or request batching: read `references/CACHING.md`.
-- Streams, event sources, async iterables, queues/pubsubs, pagination, backpressure, or stream consumers: read `references/STREAMS.md`.
-- Outgoing HTTP calls, Effect HttpClient, status handling, or HTTP rate limiting: read `references/HTTP_CLIENTS.md`.
-- Effect tests, time, sleeps, concurrency synchronization, or fakes: read `references/TESTING.md`.
 
-If a task spans several branches, read all matching files before editing.
+## Tagged errors
 
-## Core Defaults
+Never wrap tagged errors in an Effect.fail, tagged errors are directly yieldable.
 
-- Compose workflows with `Effect.gen(function* () { ... })`.
-- Define public service methods and non-trivial internal service methods with `Effect.fn("Domain.operation")`.
-- Use `Effect.fnUntraced` only for internal helpers where stack-frame/span metadata is intentionally unnecessary.
-- Prefer `Context.Service` for application services when the codebase has not standardized on another current service-tag style.
-- Build real service implementations with `Layer.effect(Service, Effect.gen(...))` and return `Service.of({ ... })`.
-- Model records with `Schema.Struct(...)` plus a same-name `interface`.
-- Model typed Effect errors with `Schema.TaggedErrorClass`.
-- Read runtime config through `Config`, not direct `process.env` access in application logic.
-- Use `Schedule` for retry, repeat, polling, pacing, and backoff policies.
-- Use `Stream` for effectful sources that emit many values over time and need pull, backpressure, interruption, or transformation.
-- Prefer Effect HTTP client modules for outgoing HTTP in Effect applications when their typed errors, layers, and client transforms are useful.
-- Prefer Effect-aware tests, explicit layers, and deterministic synchronization over sleeps.
-- Prefer decoders and `schema.makeEffect(...)` at untrusted boundaries; reserve throwing `schema.make(...)` for trusted construction, and never use casts to skip validation.
+`Schema.TaggedError` instances implement Effect's yieldable failure protocol. Yield or return them directly.
 
-## Quick Selection Guide
+### Inside `Effect.gen`
 
-- Ordinary object record: `Schema.Struct(...)` plus same-name `interface`.
-- Scalar ID/value object: constrained branded schema.
-- Internal workflow decision or state: `Data.TaggedEnum<...>` plus `Data.taggedEnum<...>()` constructors and exhaustive `$match`.
-- Reusable boundary-crossing tagged variant: `Schema.TaggedStruct(...)` plus same-name `interface`.
-- Boundary-crossing tagged union: `Schema.TaggedUnion(...)` with `.cases`, `.guards`, and `.match`.
-- External/custom discriminator such as `type`: `Schema.Struct({ type: Schema.tag("variant"), ... })` plus `Schema.toTaggedUnion("type")` when union helpers are needed.
-- Expected typed failure: `Schema.TaggedErrorClass`.
-- Unknown boundary payload: `Schema.decodeUnknownEffect(...)`.
-- Service boundary: `Context.Service<Service, Interface>()(...)` plus `Layer.effect(...)` plus `Service.of(...)`.
-- Public or non-trivial internal service method: `Effect.fn("Domain.operation")`.
-- Runtime configuration: `Config` recipes read in layers; override with `ConfigProvider` in tests.
-- Event source: `Stream` consumed with `Stream.runForEach(...)` and forked with `Effect.forkScoped` in the owning layer.
-- Queue-backed event source: `Queue` for the producer boundary, `Stream.fromQueue(...)` for consumers.
-- Broadcast event source: `PubSub` / `Stream.fromPubSub(...)` or `SubscriptionRef` for latest-value state.
-- Polling worker: `runPass().pipe(Effect.repeat(Schedule.spaced(...)))`, with typed pass failures handled before repeat.
-- Retry transient operation: `Effect.retry(...)` / `Effect.retryOrElse(...)` with a bounded `Schedule`.
-- Keyed lookup cache with TTL and concurrent-lookup dedupe: prefer `Cache.make(...)` / exit-aware `Cache.makeWith(...)` when their lifecycle and eviction model fit.
-- Memoize a single effect result: `Effect.cached(...)` / `Effect.cachedWithTTL(...)`.
-- Batch N keys into one backend call (only when a real batch endpoint exists): `Effect.request(...)` + `RequestResolver`.
-- HTTP request in an Effect application: prefer Effect `HttpClient` plus request/response schema decoding.
-- HTTP transient retry: `HttpClient.retryTransient(...)`.
-- Time-sensitive test: `TestClock`, not real sleeping.
-- Concurrent/background test synchronization: `Deferred`, `Queue`, `Latch`, `Ref`, or explicit test hooks.
+```typescript
+// ❌ BAD
+if (args.preview && args.map) {
+  return yield* Effect.fail(
+    new ImageOptimizationError({
+      message: "Cannot use --preview and --map together.",
+      cause: args,
+    }),
+  )
+}
 
-## Boundary Rules
+// ✅ GOOD
+if (args.preview && args.map) {
+  return yield* new ImageOptimizationError({
+    message: "Cannot use --preview and --map together.",
+    cause: args,
+  })
+}
+```
 
-- Keep HTTP handlers thin: decode input, read context, call services, map typed errors to transport responses.
-- Keep business rules in services or domain functions, not transport handlers.
-- Wrap HTTP clients, SDKs, CLIs, and external integrations in named effects at adapter boundaries.
-- Decode persisted rows with Schema or SQL-specific helpers when values are not trivially trusted.
-- Keep provider/network calls outside authoritative database transactions.
-- Catch or retry only when the current boundary has a truthful response.
-- Retry only when the operation has proven idempotency.
-- Let exhausted failures remain visible unless the boundary has a real fallback.
+### Returning `Effect` from plain functions
+Avoid returning Effectful values from plain functions. Instead write the function itself as an Effect to make it clear what it returns.
 
-## Do Nots
+```typescript
+// ❌ BAD
+function requireText(value: string, label: string) {
+  if (value.trim().length === 0) {
+    return Effect.fail(
+      new BroadcastInputError({
+        message: `${label} is required.`,
+        cause: value,
+      }),
+    )
+  }
+  return Effect.succeed(value)
+}
 
-- Do not use `as any`, non-null assertions, or unchecked casts to silence Effect typing problems.
-- Do not introduce `Schema.Class` or `Schema.TaggedClass` as default app data-modeling patterns.
-- Do not hand-roll `_tag` error classes when `Schema.TaggedErrorClass` fits.
-- Do not use cause-level recovery when typed-error recovery is enough.
-- Do not use `Layer.mergeAll(...)` or `provideMerge(...)` as blind make-it-compile tools.
-- Do not hide required application authority, credentials, persistence, transports, or external services behind `Context.Reference` defaults.
-- Do not add arbitrary `Effect.sleep(...)` to tests when a deterministic synchronization primitive is available.
-- Do not hand-roll Map/TTL/prune caches or in-flight dedupe when `effect/Cache` fits.
+// ✅ GOOD
+const requireText = Effect.fnUntraced(function*(value: string, label: string) {
+  if (value.trim().length === 0) {
+    return yield* new BroadcastInputError({
+      message: `${label} is required.`,
+      cause: value,
+    })
+  }
+
+  return value
+})
+```
+
+### In `catch` callbacks
+
+Construct the tagged error and yield/return it — do not wrap with `Effect.fail`.
+
+```typescript
+// ✅ GOOD
+catch: cause =>
+  new ImageOptimizationError({
+    message: `Failed to read image metadata: ${relativeAsset}`,
+    cause,
+  }),
+```
+
+When the callback must return an `Effect`, yield the error inside a generator or return the instance directly.
+
+## Defining tagged errors
+
+Use `Schema.TaggedError` with a `cause` and optional `message` if the error is user-facing:
+
+```typescript
+export class ImageOptimizationError extends Schema.TaggedError<ImageOptimizationError>()(
+  "ImageOptimizationError",
+  {
+    message: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
+```
+
+Prefer exporting error classes that are part of a module's public failure channel.
+
+## When `Effect.fail` is appropriate
+
+Use `Effect.fail` only for **non-tagged** failure values (strings, defects, or ad-hoc values):
+
+```typescript
+if (!exists) return yield* Effect.fail(`Public directory does not exist: ${publicDir}`)
+```
+
+For domain errors with a `_tag`, always use a tagged error schema instead.
+
+## Validation
+Never manually validate input/output from unknown sources without using `Schema`. Use `Schema.Struct` or other APIs to define the data model you expect and 
+validate against that model using the built-in APIs.
+
+```typescript
+// ❌ BAD
+interface Input {
+	value: string
+	label: string
+}
+
+function someFunction(input: Input) {
+	if (input.value.trim().length === 0) {
+		return Effect.fail("Expected input value to exist.")
+	}
+}
+
+// ✅ GOOD
+const InputSchema = Schema.Struct({
+	value: Schema.NonEmptyString,
+	label: Schema.NonEmptyString
+})
+type Input = InputSchema.Type
+
+const someFunction = Effect.fnUntraced(function*(input: Input) {
+	const validInput = yield* Schema.decodeUnknownEffect(InputSchema)(input)
+})
+
+// OR - create a reusable validator function if it's used in multiple places
+const validateInput = Schema.decodeUnknownEffect(InputSchema)
+
+const someFunction = Effect.fnUntraced(function*(input: Input) {
+	const validInput = yield* validateInput(input)
+})
+```
+
+## Pattern Matching
+Use `Match` from `Effect` for chained literal ternaries over the same value, most utilities like `Exit` and `Option` also expose a `.match()` method as well.
+
+```typescript
+// ❌ BAD
+	const solved = Exit.isSuccess(decoded)
+		? {
+				m: decoded.value.m,
+				topTvNumber: decoded.value.topTvNumber,
+				result: solveAotrtONumber(decoded.value.m, decoded.value.topTvNumber),
+			}
+		: null
+```
+
+```typescript
+// ✅ GOOD
+const solved = Exit.match(decoded, {
+	onSuccess: value => ({
+		m: value.m,
+		topTvNumber: value.topTvNumber,
+		result: solveAotrtONumber(value.m, value.topTvNumber),
+	}),
+	onFailure: () => null,
+})
+```
