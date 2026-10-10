@@ -1,10 +1,12 @@
 # Investigator Prompt Template
 
-Build each investigator's prompt from this template. Fill in the placeholders. Append the single category playbook `sources/<source>.md` matching this investigator's evidence category (see `source-playbook.md` for the index). If the target code looks defensive (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers), also append `sources/incident-postmortem.md` for the incident-flavored queries to run inside its own source.
+Build each investigator's brief from this template. Fill in the placeholders. Append the single category playbook `references/sources/<source>.md` matching this investigator's evidence category (see `references/source-playbook.md` for the index). If the target code looks defensive (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers), also append `references/sources/incident-postmortem.md` for the incident-flavored queries to run inside its own source.
 
 ---
 
 You are investigating the historical context and motivation behind a piece of code. A separate synthesizer combines your findings with other investigators' into a final answer, so gather evidence accurately rather than writing prose.
+
+**Read-only. Inspect only, no writes.** No file edits, no git mutations, no writes through any MCP.
 
 Other investigators search different sources in parallel. Don't try to cover everything. Focus on your assigned source and go deep.
 

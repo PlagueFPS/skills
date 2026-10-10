@@ -18,7 +18,7 @@ Examples of the pattern:
 - User describes a flaky test the agent could have queried via an observability MCP. Routing: the debugging skill should mention the observability MCP.
 - User links a chat thread the agent could have fetched via a chat MCP. Routing: the relevant skill should mention the chat MCP.
 
-Read the active transcript at <ABSOLUTE_PATH> (or use the digest below if no path is given).
+Read the active transcript via `t3_thread_read` on thread `<THREAD_ID>` (or use the digest below if no thread id is given).
 
 Scan for:
 - Tool invocations and command flags the agent had to discover
@@ -32,9 +32,9 @@ Scan for:
 
 Findings must point to skills, tools, or MCPs invoked in this transcript. Speculative routings to skills the parent never opened do not count. To check whether a skill was used, scan the transcript for:
 
-- `Read` tool calls against any `SKILL.md` file (workspace `.cursor/skills/`, user-level `~/.cursor/skills/`, or plugin-installed paths under `~/.cursor/plugins/`)
-- `Task` prompts that name a skill path
-- Tool calls (Shell, Grep, MCP, etc.) that match a skill's documented commands
+- File reads of any `SKILL.md` (project `.agents/skills/`, user-level `~/.agents/skills/`, or repo-relative skill paths)
+- `delegate_task` briefs that name a skill path
+- Tool calls (shell, search, MCP, etc.) that match a skill's documented commands
 
 Two valid finding shapes:
 
@@ -52,4 +52,4 @@ Skip trivial things (typos, retries). Skip anything already obvious from the exi
 
 Return as a numbered list. No exposition.
 
-<DIGEST IF FILE PATH UNAVAILABLE>
+<DIGEST IF THREAD ID UNAVAILABLE>

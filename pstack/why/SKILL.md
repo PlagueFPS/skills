@@ -10,7 +10,7 @@ Investigate the motivation and intent behind code.
 
 Companion to the `how` skill. `how` answers what the code does and how it works. `why` answers what forces led to its shape.
 
-Each spawn below names a role line in the pstack model configuration (`~/.agents/pstack-models.md`, or fallback `~/.cursor/rules/pstack-models.mdc`) and a default. Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message.
+Each delegation below names a role line in `pstack-models.md`. Resolve it through `orchestrator_capabilities` and pass that provider and model to `delegate_task`. Never hardcode a slug. If the line or the file is missing, use the session default and say so.
 
 ## Operating Posture
 
@@ -20,11 +20,11 @@ Operate as a **careful, cautious, and precise investigator**. Be honest about wh
 
 Parse what the user is asking. The **target** is usually a chunk of code, a pattern, a feature, or a named design decision. The **question** is usually a design rationale, a tradeoff, a motivating edge case, an external constraint, dead code, or a broad history sweep.
 
-If the target is vague ("why do we do it this way?" with no clear referent), make your best guess from conversation context (open files, recent edits, cursor location, what was just discussed). State your interpretation briefly so the user can redirect if you're off, then proceed.
+If the target is vague ("why do we do it this way?" with no clear referent), make your best guess from conversation context (open files, recent edits, selection, what was just discussed). State your interpretation briefly so the user can redirect if you're off, then proceed.
 
 ## Step 2. Establish the Code Anchor
 
-Before spawning investigators, anchor the investigation in concrete code. You need:
+Before delegating investigators, anchor the investigation in concrete code. You need:
 
 - The relevant file path(s) and line range(s)
 - The key symbols (function names, class names, constants)
@@ -55,13 +55,13 @@ gh pr view <number> --json title,body,author,createdAt,mergedAt,labels,closingIs
 
 Capture this as seed context (file paths, symbols, commits, PR numbers, linked ticket IDs). Pass it to the investigators.
 
-## Step 3. Spawn Parallel Investigators (default posture)
+## Step 3. Delegate Parallel Investigators (default posture)
 
 **Default to the full parallel investigation.**
 
 ### Discovery
 
-Before spawning investigators, list the available MCPs from the Cursor environment. Use the available-tools map when present. Otherwise inspect the `mcps/` directory Cursor exposes for enabled MCP servers.
+Before delegating, inventory the MCP servers from the tools this session exposes. Group tools by server prefix and read tool names and descriptions.
 
 Map each available MCP to one evidence category:
 
@@ -77,14 +77,13 @@ Source control is always available through git and `gh`. For the other six, clas
 
 Aim for a complete **coverage map**, not a minimal one. Document the null, don't skip the search.
 
-Launch all matching investigators in a single message so they run concurrently. Don't ask one agent to cover multiple MCPs.
+Issue every matching `delegate_task` call (`mode: "async"`) in a single turn so they run concurrently, then drain with `task_status`. Don't ask one investigator to cover multiple MCPs.
 
-Subagent config (each):
-- `subagent_type`: `generalPurpose`
-- `model`: the `why investigators` line, default `grok-4.7-xhigh-fast`
-- `readonly`: `false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables MCP-backed investigators entirely. Investigators still shouldn't write anything.
+Delegation config (each):
+- Provider and model: the `why investigators` line.
+- Every brief stands alone. A T3 child task gets only the brief, never this conversation. T3 child tasks can write, so each brief must say read-only, inspect only, no writes: no file edits, no git mutations, no writes through any MCP.
 
-Each investigator gets:
+Each investigator brief contains:
 1. The base prompt from `references/investigator-prompt.md`
 2. The category playbook `references/sources/<source>.md` for the selected MCP, adapted from the examples in `references/source-playbook.md`
 3. The cross-cutting `references/sources/incident-postmortem.md` **if the target code looks defensive** (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers)
@@ -93,11 +92,11 @@ Each investigator gets:
 
 ### Investigator roster. One per available evidence category
 
-Spawn one investigator per category that has a matching MCP. Each owns exactly one tool or MCP.
+Delegate one investigator per category that has a matching MCP. Each owns exactly one tool or MCP.
 
 Each entry names the category and the kind of "why" it uniquely surfaces. Use it to know what to expect back, how to name a gap when a category returns empty, and (only in the rare provably-irrelevant case) to justify a skip.
 
-1. **Source control investigator**. Git history, `gh` for PRs, code comments, tests. Always spawn. The only guaranteed source. Best at surfacing *implementation-time rationale captured during review*.
+1. **Source control investigator**. Git history, `gh` for PRs, code comments, tests. Always delegate. The only guaranteed source. Best at surfacing *implementation-time rationale captured during review*.
 
 2. **Issue / ticket tracker investigator** (e.g. Linear, Jira, GitHub Issues, Plane, Shortcut MCP). Best at surfacing *the product or business forcing function*. Strongest when the why is external to engineering.
 
@@ -122,13 +121,12 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 
 ## Step 4. Synthesize
 
-Spawn one synthesizer subagent:
+Delegate one synthesizer with `delegate_task`:
 
-- `subagent_type`: `generalPurpose`
-- `model`: the `why synthesizer` line, default `claude-opus-5-5-max`
-- `readonly`: `false` (agent mode). The synthesizer's quality check spot-verifies citations, which can require MCP access. Readonly/Ask mode strips MCPs and defeats that.
+- Provider and model: the `why synthesizer` line.
+- Its quality check spot-verifies citations, which can require MCP access. Say read-only, inspect only, no writes in the brief.
 
-The synthesizer gets:
+The synthesizer brief contains:
 1. The investigator findings, including any null results and any categories skipped with justification
 2. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)
 3. The user's original question
@@ -152,7 +150,7 @@ After the Sources Consulted block, if the user's `why` question is a precursor t
 ## Reference Files
 
 - `references/epistemics.md`. Confidence tiers and phrasing guide. The synthesizer must follow it.
-- `references/investigator-prompt.md`. Base prompt template for investigator subagents.
+- `references/investigator-prompt.md`. Base prompt template for investigator briefs.
 - `references/source-playbook.md`. Index pointing at the category playbooks below.
 - `references/sources/*.md`. One self-contained example playbook per category, plus cross-cutting `incident-postmortem.md`. Give an investigator the single file that matches its category and adapt it to the available MCP.
-- `references/synthesizer-prompt.md`. Prompt template for the synthesizer subagent, including the output format.
+- `references/synthesizer-prompt.md`. Prompt template for the synthesizer brief, including the output format.

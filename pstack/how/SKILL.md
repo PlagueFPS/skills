@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
 
-Each spawn below names a role line in the pstack model configuration (`~/.agents/pstack-models.md`, or fallback `~/.cursor/rules/pstack-models.mdc`) and a default. Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message.
+Every spawn below is a `delegate_task` with a self-contained brief; the child gets only the brief, never this conversation. Each brief says it is read-only: inspect only, no writes, no git commands. Resolve each role's model from `pstack-models.md` via `orchestrator_capabilities`. Never hardcode a slug. If the role line is missing, run `setup-pstack` or use the parent's model.
 
 ## Step 1. Assess Complexity
 
@@ -21,33 +21,21 @@ When in doubt, take the simple path.
 
 ## Step 2a. Explore (complex questions only)
 
-Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:
+Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message, `mode: "async"`, model from the `how explorer` role.
 
-- `subagent_type`: `generalPurpose`
-- `model`: the `how explorer` line, default `grok-4.7-xhigh-fast`
-- `readonly`: `true`
-
-Each explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.
+Each explorer's brief is `references/explorer-prompt.md` with its angle filled in. Drain with `task_status`, then go to Step 3.
 
 ## Step 2b. Direct Explain (simple questions)
 
-Spawn one Task subagent that explores and explains in one pass:
+Spawn one `delegate_task` that explores and explains in one pass, model from the `how explainer` role.
 
-- `subagent_type`: `generalPurpose`
-- `model`: the `how explainer` line, default `claude-opus-5-5-max`
-- `readonly`: `true`
-
-Build its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.
+Build its brief from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.
 
 ## Step 3. Synthesize (complex questions only)
 
-Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:
+Once all explorers have returned, spawn one `delegate_task` to synthesize their findings into one explanation, model from the `how explainer` role.
 
-- `subagent_type`: `generalPurpose`
-- `model`: the `how explainer` line, default `claude-opus-5-5-max`
-- `readonly`: `true`
-
-Build its prompt from `references/explainer-prompt.md` with every explorer's findings filled in.
+Build its brief from `references/explainer-prompt.md` with every explorer's findings filled in.
 
 ## Step 4. Present
 
