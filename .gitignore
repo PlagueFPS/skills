@@ -11,3 +11,6 @@ Thumbs.db
 
 # Local logs
 *.log
+
+# Codex system skills / local harness markers
+.system/

@@ -48,10 +48,33 @@ It includes the audit reference, agent metadata, and [upstream MIT license](effe
    git push
    ```
 
+## Automatic Sync
+
+To ensure new skills are automatically pulled and made immediately available across all AI harnesses (T3 Code, Claude Code, Cursor, Codex, OpenCode, Gemini):
+
+1. **Install the background sync timer & CLI link:**
+   ```bash
+   ./scripts/sync-skills.sh --install
+   ```
+   This does the following:
+   - Symlinks `skills-sync` into `~/.local/bin/skills-sync`
+   - Installs a systemd user timer (`skills-sync.timer`) that checks `origin/main` every 2 minutes and fast-forwards `main` in `~/code/skills`
+   - Configures a git `post-merge` hook so local merges automatically verify harness symlinks
+
+2. **Check status anytime:**
+   ```bash
+   skills-sync --status
+   ```
+
+3. **Manual sync:**
+   ```bash
+   skills-sync
+   ```
+
 ## Global Provider Links
 
 This repository is symlinked to the following discovery paths:
-- **Antigravity / Gemini:** `~/.gemini/config/skills` & `~/.gemini/antigravity-cli/skills`
+- **T3 Code / Antigravity:** `~/.t3/userdata/providers/antigravity/*/config/skills` & `~/.gemini/config/skills`
 - **Claude Code:** `~/.claude/skills`
 - **Cursor:** `~/.cursor/skills`
 - **OpenAI Codex:** `~/.codex/skills`
