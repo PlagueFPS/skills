@@ -11,11 +11,19 @@ skills/
 ├── effect/
 │   ├── SKILL.md
 │   └── references/
+├── effect-service-design/
+│   ├── SKILL.md
+│   ├── LICENSE
+│   ├── agents/
+│   └── references/
 ├── javascript-testing-expert/
 │   └── SKILL.md
 └── <new-skill>/
     └── SKILL.md
 ```
+
+The `effect-service-design/` skill comes from [dmmulroy/skills at commit 8603380](https://github.com/dmmulroy/skills/tree/8603380821fee6a77c82639f364ce8fe4f5a92be/effect-service-design).
+It includes the audit reference, agent metadata, and [upstream MIT license](effect-service-design/LICENSE).
 
 ## Adding a New Skill
 
