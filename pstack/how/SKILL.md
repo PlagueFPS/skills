@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
 
-Every spawn below is a `delegate_task` with a self-contained brief; the child gets only the brief, never this conversation. Each brief says it is read-only: inspect only, no writes, no git commands. Resolve each role's model from `pstack-models.md` via `orchestrator_capabilities`. Never hardcode a slug. If the role line is missing, run `setup-pstack` or use the parent's model.
+Every spawn below is a `delegate_task` with a self-contained brief; the child gets only the brief, never this conversation. Each brief says it is read-only: inspect only, no writes, no git commands. Resolve each role's model from `pstack-models.md` via `orchestrator_capabilities`. Never hardcode a slug. If the role line is missing, run `setup-pstack` or use the parent's model. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
 
 ## 1. Assess complexity
 

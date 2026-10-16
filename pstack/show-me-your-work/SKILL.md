@@ -64,7 +64,7 @@ Correct the log, not the story. The audit never edits or removes a row, even an 
 
 ## Cross-model review of the trail
 
-Before handing back, spawn a reviewer with `delegate_task` (`mode: "async"`, drained with `task_status`) on a different provider or model family from the one that did the work, resolved through `orchestrator_capabilities`; never hardcode a slug. Self-review is not a substitute. Its brief stands alone (T3 child agents get only the brief, never this conversation) and says read-only: inspect only, no writes.
+Before handing back, spawn a reviewer with `delegate_task` (`mode: "async"`, drained with `task_status`) on a different provider or model family from the one that did the work, resolved through `orchestrator_capabilities`; never hardcode a slug. Self-review is not a substitute. Its brief stands alone (T3 child agents get only the brief, never this conversation) and says read-only: inspect only, no writes. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
 
 The reviewer reads the audit trail and the run's transcript with `t3_thread_read`, then flags what the user should pay attention to. Not a redo of the work, a scan for what's suboptimal or risky.
 
@@ -78,7 +78,3 @@ Every reply for a run that produced a trail ends with an "Attention" section. Le
 ## Reviewing the trail
 
 Read top to bottom, follow the evidence pointers, spot-check. GitHub renders a committed TSV as a table. `column -s$'\t' -t decisions.tsv` renders it in a terminal.
-
-## Composing this skill
-
-Other skills route their audit trail here instead of inventing one. Reference it by name and let it own the format. Don't restate the columns.

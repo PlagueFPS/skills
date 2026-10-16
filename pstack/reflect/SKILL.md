@@ -20,7 +20,7 @@ Reviewers get only their brief, never the parent's context. Pass the thread id a
 
 One turn, three `delegate_task` calls with `mode: "async"`. Reviewers need tool access for context lookups (tickets, chat threads, observability traces referenced in the transcript), so do not restrict their tools.
 
-Resolve each model from the role line in `pstack-models.md` via `orchestrator_capabilities`. Never hardcode a slug.
+Resolve each model from the role line in `pstack-models.md` via `orchestrator_capabilities`. Never hardcode a slug. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
 
 | Lens | Role line | Prompt template |
 |---|---|---|

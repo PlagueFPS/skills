@@ -33,7 +33,7 @@ For each reviewer:
 
 If `delegate_task` rejects a configured entry, say so and run that reviewer on the closest available model of the same family from `orchestrator_capabilities`. Do not block the review on it.
 
-Read `references/reviewer-prompt.md` and fill in the same template for every reviewer with the stated intent, the diff or file contents, the rubric from `references/rubric.md`, and the code-quality lens from `references/code-quality-review.md`. Drain results with `task_status`.
+Read `references/reviewer-prompt.md` and fill in the same template for every reviewer with the stated intent, the diff or file contents, the rubric from `references/rubric.md`, and the code-quality lens from `references/code-quality-review.md`. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill. Drain results with `task_status`.
 
 ## Step 4, Synthesize
 
