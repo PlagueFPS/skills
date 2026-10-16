@@ -1,21 +1,22 @@
 ---
 name: principle-test-behavior-not-implementation
-description: "Apply when you write, change, or keep a test. Call the code as its users do and assert the exact result they see. Rewrite or delete a test that would pass if every imported function returned undefined."
+description: "Apply when writing or reviewing tests. Test what the code promises its callers, not the private helpers, matched calls, or assertion shapes it used on the way. Two imagined edits: break the behavior, change the internals."
 disable-model-invocation: true
 ---
 
 # Test Behavior, Not Implementation
 
-A test calls the code as its users do and asserts the exact result they see. Rewrite or delete any test that would still pass if every imported function returned `undefined` or a wrong value.
+Test what the code promises to its callers. A test must fail when the contract is broken, and pass when the internals are refactored.
 
-These shapes fail that check:
+**Why:** Tests that verify implementation details break on every refactor, creating maintenance drag without catching regressions. Tests that assert behavior act as regression shields and living documentation.
 
-- Loose or no assertion: `toBeDefined`, `toBeTruthy`, `not.toThrow`, `toBeGreaterThan(0)`.
-- Call or absence only: `toHaveBeenCalled`, `not.toHaveBeenCalled`, `toBeUndefined`, `toEqual([])`.
-- Expected value computed by the code under test: `expect(f(a)).toBe(f(a))`.
-- Restated constant, config default, table row, or prompt string.
-- Assertions on data the test built, with no call to the subject.
+Judge each test against two imagined edits:
 
-Fix: call the subject in the test body with one concrete input and assert the literal output or effect. For a mock, assert the payload it received. For an absence, also assert the presence on another input. For a constant, test the mechanism that reads it with one input instead of restating the value.
+- **Break the behavior.** Make the code return a wrong value, skip an effect, or do the effect twice. If the test still passes, it proves nothing. The usual causes are an assertion looser than the contract, an expected value computed by the code under test, a restated constant or prompt string that never runs the code that reads it, and an assertion on data that the test built itself.
+- **Change the internals.** Keep every observable result the same and restructure the code underneath. If the test now fails, it is pinned to the implementation. It will need a rewrite on every refactor and still catches no bug.
 
-Keep relation checks across table rows (a key in two tables, a parent that exists) and `*.test-d.ts` type checks.
+Keep a test that catches the first edit and survives the second. Rewrite or delete the rest. To write a test that does both, drive the code through its users' interface with a concrete input. Derive the expected value from the requirement, not from a run of the code. Assert what the contract promises, no less and no more.
+
+The contract decides, not the shape of the assertion. When "an empty cart never charges" is the promise, an assertion that the payment client got no call is behavior. Pair it with a case where the charge happens, so that the test shows it can see a call. The payload that a mocked external service receives is behavior, because that service observes it. A call to an internal helper is implementation, because no user can see it. An empty list is the exact answer when no record matches, and a hollow check when the test only needs some result. An exact error message pins wording that no caller reads. The error type that callers branch on is the contract.
+
+A test can pin an invariant instead of a call, such as a key that must exist in two tables or a compile-time type check. The invariant is the behavior.
