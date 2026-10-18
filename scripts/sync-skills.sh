@@ -119,10 +119,52 @@ sync_git_repo() {
 
     if [ "$local_sha" != "$upstream_sha" ]; then
       log "Updates detected. Fast-forwarding main ($local_sha -> $upstream_sha)..."
-      if git -C "$SKILLS_REPO" merge --ff-only origin/main --quiet 2>/dev/null; then
+      local merge_output
+      if merge_output="$(git -C "$SKILLS_REPO" merge --ff-only origin/main 2>&1)"; then
         echo "[skills-sync] Successfully fast-forwarded skills repository to origin/main."
       else
+        # If untracked files block the merge, check if they are identical to origin/main
+        local resolved_all=false
+        local untracked_files=()
+        while IFS= read -r line; do
+          if [[ "$line" =~ ^[[:space:]]+(.*)$ ]]; then
+            untracked_files+=("${BASH_REMATCH[1]}")
+          fi
+        done < <(echo "$merge_output" | sed -n '/untracked working tree files would be overwritten by merge:/,/Please move or remove/p' | grep '^[[:space:]]' || true)
+
+        if [ ${#untracked_files[@]} -gt 0 ]; then
+          resolved_all=true
+          for f in "${untracked_files[@]}"; do
+            local file_path="$SKILLS_REPO/$f"
+            if [ -f "$file_path" ] && git -C "$SKILLS_REPO" cat-file -e "origin/main:$f" 2>/dev/null; then
+              local local_hash upstream_hash
+              local_hash="$(git -C "$SKILLS_REPO" hash-object "$file_path")"
+              upstream_hash="$(git -C "$SKILLS_REPO" rev-parse "origin/main:$f")"
+              if [ "$local_hash" = "$upstream_hash" ]; then
+                log "Removing identical untracked file before merge: $f"
+                rm -f "$file_path"
+              else
+                resolved_all=false
+                break
+              fi
+            else
+              resolved_all=false
+              break
+            fi
+          done
+
+          if [ "$resolved_all" = true ]; then
+            if merge_output="$(git -C "$SKILLS_REPO" merge --ff-only origin/main 2>&1)"; then
+              echo "[skills-sync] Successfully fast-forwarded skills repository to origin/main."
+              return 0
+            fi
+          fi
+        fi
+
         log_err "Could not fast-forward main (uncommitted changes or diverge). Manual resolution needed."
+        while IFS= read -r line; do
+          log_err "  $line"
+        done <<< "$merge_output"
       fi
     else
       log "Repository is already up to date with origin/main."
@@ -211,6 +253,15 @@ show_status() {
       echo "  - $(basename "$dir")"
     fi
   done
+  if [ -d "$SKILLS_REPO/pstack" ]; then
+    local pstack_count=0
+    for dir in "$SKILLS_REPO/pstack"/*; do
+      if [ -d "$dir" ] && [ -f "$dir/SKILL.md" ]; then
+        pstack_count=$((pstack_count + 1))
+      fi
+    done
+    echo "  - pstack ($pstack_count skills)"
+  fi
 
   echo ""
   echo "=== Harness Symlink Status ==="
