@@ -9,7 +9,7 @@ description: Guidelines for writing Effect-TS code. Apply when editing or review
 
 When you import multiple symbols from the same module, combine them into one import statement. Do not create separate import statements for the same module.
 
-```typescript
+```ts
 // Wrong
 import { Effect } from "effect"
 import { pipe } from "effect"
@@ -24,7 +24,7 @@ import { Duration, Effect, pipe, type Scope } from "effect"
 
 Use `Effect.fnUntraced` instead of `Effect.gen` for untraced function construction. Use `Effect.fn` for traced construction when observability is required and maximum performance is not needed.
 
-```typescript
+```ts
 // Wrong
 const foo = (input: string) =>
 	Effect.gen(function*() {
@@ -52,7 +52,7 @@ const foo = Effect.fn("foo")(function*(input: string) {
 
 Use `Effect.gen` for service constructors that take no parameters.
 
-```typescript
+```ts
 class MyService extends Context.Service<MyService>()("UniqueServiceKey") {
 	make: Effect.gen(function*() {
 		// Default implementation
@@ -66,7 +66,7 @@ Do not wrap tagged errors in `Effect.fail`. `Schema.TaggedError` instances imple
 
 ### Inside generators
 
-```typescript
+```ts
 // Wrong
 if (args.preview && args.map) {
 	return yield* Effect.fail(
@@ -90,7 +90,7 @@ if (args.preview && args.map) {
 
 Avoid returning effect values from plain functions. Write the function itself as an effect generator.
 
-```typescript
+```ts
 // Wrong
 function requireText(value: string, label: string) {
 	if (value.trim().length === 0) {
@@ -120,7 +120,7 @@ const requireText = Effect.fnUntraced(function*(value: string, label: string) {
 
 Construct the tagged error and return it directly. Do not wrap the error with `Effect.fail`.
 
-```typescript
+```ts
 // Right
 catch: (cause) =>
 	new ImageOptimizationError({
@@ -135,7 +135,7 @@ When the callback must return an `Effect`, yield the error inside a generator or
 
 Use `Schema.TaggedError` with a `cause` field and an optional `message` field when the error faces users:
 
-```typescript
+```ts
 export class ImageOptimizationError extends Schema.TaggedError<ImageOptimizationError>()(
 	"ImageOptimizationError",
 	{
@@ -151,7 +151,7 @@ Export error classes that belong to the public failure channel of a module.
 
 Use `Effect.fail` only for untagged failure values, such as strings, defects, or ad-hoc values:
 
-```typescript
+```ts
 if (!exists) return yield* Effect.fail(`Public directory does not exist: ${publicDir}`)
 ```
 
@@ -161,7 +161,7 @@ For domain errors, define and yield a tagged error schema instead.
 
 To inspect or catch a tagged error, discriminate on the `_tag` property or use `Effect.catchTag`. Do not use `instanceof` checks. `instanceof` checks fail across package boundaries, module realms, and deserialized error boundaries.
 
-```typescript
+```ts
 // Wrong
 const program = effect.pipe(
 	Effect.catchIf(
@@ -190,7 +190,7 @@ if (error._tag === "NotFoundError") {
 
 When a module provides predicate functions, use them to inspect instances of that module's types. Do not inspect internal discriminant properties manually when a dedicated predicate exists.
 
-```typescript
+```ts
 // Wrong
 if (result._tag === "Failure") {
 	handleFailure(result.failure)
@@ -216,7 +216,7 @@ if (Exit.isSuccess(exit)) {
 
 To test types or verify object properties, use functions from the `Predicate` module instead of raw equality comparisons or ad-hoc checks.
 
-```typescript
+```ts
 // Wrong
 function getLength(value: unknown): number {
 	if (typeof value === "object" && value !== null && "length" in value) {
@@ -254,7 +254,7 @@ if (Predicate.isNotNullable(value)) {
 
 Do not validate input data manually without `Schema`. Use `Schema.Struct` or other schema combinators to define the expected model. Validate against that model using `Schema.decodeUnknownEffect`.
 
-```typescript
+```ts
 // Wrong
 interface Input {
 	value: string
@@ -286,7 +286,7 @@ const processInput = Effect.fnUntraced(function*(input: unknown) {
 
 When you define schema properties that represent time or duration values, decode the numeric input into a `Duration` value. This lets callers use the `Duration` module APIs directly instead of handling raw numbers and unit conversions manually.
 
-```typescript
+```ts
 // Wrong
 import { Duration, Effect, Schema } from "effect"
 
@@ -322,7 +322,7 @@ const waitTimeout = Effect.fnUntraced(function*(
 
 Use the `HttpClient` module from `effect` for HTTP requests instead of global `fetch`. `HttpClient` provides typed error channels, tracing integration, scoped lifecycle management, and test layer substitution.
 
-```typescript
+```ts
 // Wrong
 const fetchUser = (id: string) =>
 	Effect.tryPromise({
@@ -350,7 +350,7 @@ const fetchUser = (id: string) =>
 
 When you evaluate multiple consecutive branches on the same value or property, use the `Match` module. Use `Match.type` to build a reusable matcher function. Use `Match.value` to match against an existing value in scope. Use `.match()` methods for simple two-branch types like `Exit` or `Option`.
 
-```typescript
+```ts
 // Wrong
 function getStatusLabel(status: Status): string {
 	if (status._tag === "Idle") {
@@ -391,3 +391,48 @@ const resultText = Exit.match(decodedExit, {
 	onFailure: (cause) => `Failure: ${cause}`,
 })
 ```
+
+## Providing Layers
+Avoid providing layers locally where possible and prefer providing all neccessary layers once right before running an Effect.
+
+```ts
+// Wrong
+	const myEffect = Effect.fnUntraced(function*(){
+		const client = (yield* HttpClient.HttpClient).pipe(
+			Effect.provide(FetchHttpClient.layer)
+		)
+
+		// implementation using the client
+	})
+
+	// OR
+	const myEffect = Effect.fnUntraced(function*(){
+		const client = yield* HttpClient.HttpClient
+
+		// implementation using the client
+	}, 
+		(effect) => effect.pipe(Effect.provide(FetchHttpClient.layer))
+	)
+```
+
+```ts
+// Right
+	const myEffect = Effect.fnUntraced(function*(){
+		const client = yield* HttpClient.HttpClient
+
+		// implementation using the client
+	})
+
+	const Application = Effect.gen(function*(){
+		const result = yield* myEffect
+
+		// use the result
+	}).pipe(
+		// Provide layers needed for runtime implementation before running
+		Effect.provide(FetchHttpClient.layer),
+		Effect.runPromise
+	)
+```
+
+Prebuilding and storing references for live and test layers for Service implementations remains an approved pattern. This guideline is aimed for Effects
+that consume a Service in their own implementation rather than acting as the constructor of a given Service.
