@@ -1,161 +1,9 @@
 ---
 name: effect
-description: Guidelines for writing Effect-TS code. Apply when editing or reviewing Effect code.
+description: Use when writing or reviewing Effect-TS code.
 ---
 
 # Effect code guidelines
-
-## Consolidate module imports
-
-When you import multiple symbols from the same module, combine them into one import statement. Do not create separate import statements for the same module.
-
-```ts
-// Wrong
-import { Effect } from "effect"
-import { pipe } from "effect"
-import type { Scope } from "effect"
-import { Duration } from "effect"
-
-// Right
-import { Duration, Effect, pipe, type Scope } from "effect"
-```
-
-## Create effectful functions
-
-Use `Effect.fnUntraced` instead of `Effect.gen` for untraced function construction. Use `Effect.fn` for traced construction when observability is required and maximum performance is not needed.
-
-```ts
-// Wrong
-const foo = (input: string) =>
-	Effect.gen(function*() {
-		const myService = yield* Service
-		const result = yield* myService.doWork(input)
-		return result
-	})
-
-// Right: Untraced construction
-const foo = Effect.fnUntraced(function*(input: string) {
-	const myService = yield* Service
-	const result = yield* myService.doWork(input)
-	return result
-})
-
-// Right: Traced construction
-const foo = Effect.fn("foo")(function*(input: string) {
-	const myService = yield* Service
-	const result = yield* myService.doWork(input)
-	return result
-})
-```
-
-### When to use Effect.gen
-
-Use `Effect.gen` for service constructors that take no parameters.
-
-```ts
-class MyService extends Context.Service<MyService>()("UniqueServiceKey") {
-	make: Effect.gen(function*() {
-		// Default implementation
-	}),
-}
-```
-
-## Yield tagged errors directly
-
-Do not wrap tagged errors in `Effect.fail`. `Schema.TaggedError` instances implement Effect's yieldable failure protocol. Yield or return them directly.
-
-### Inside generators
-
-```ts
-// Wrong
-if (args.preview && args.map) {
-	return yield* Effect.fail(
-		new ImageOptimizationError({
-			message: "Cannot use --preview and --map together.",
-			cause: args,
-		}),
-	)
-}
-
-// Right
-if (args.preview && args.map) {
-	return yield* new ImageOptimizationError({
-		message: "Cannot use --preview and --map together.",
-		cause: args,
-	})
-}
-```
-
-### Returning effects from plain functions
-
-Avoid returning effect values from plain functions. Write the function itself as an effect generator.
-
-```ts
-// Wrong
-function requireText(value: string, label: string) {
-	if (value.trim().length === 0) {
-		return Effect.fail(
-			new BroadcastInputError({
-				message: `${label} is required.`,
-				cause: value,
-			}),
-		)
-	}
-	return Effect.succeed(value)
-}
-
-// Right
-const requireText = Effect.fnUntraced(function*(value: string, label: string) {
-	if (value.trim().length === 0) {
-		return yield* new BroadcastInputError({
-			message: `${label} is required.`,
-			cause: value,
-		})
-	}
-	return value
-})
-```
-
-### In catch callbacks
-
-Construct the tagged error and return it directly. Do not wrap the error with `Effect.fail`.
-
-```ts
-// Right
-catch: (cause) =>
-	new ImageOptimizationError({
-		message: `Failed to read image metadata: ${relativeAsset}`,
-		cause,
-	}),
-```
-
-When the callback must return an `Effect`, yield the error inside a generator or return the instance directly.
-
-## Define tagged errors
-
-Use `Schema.TaggedError` with a `cause` field and an optional `message` field when the error faces users:
-
-```ts
-export class ImageOptimizationError extends Schema.TaggedError<ImageOptimizationError>()(
-	"ImageOptimizationError",
-	{
-		message: Schema.String,
-		cause: Schema.Defect(),
-	},
-) {}
-```
-
-Export error classes that belong to the public failure channel of a module.
-
-## When to use Effect.fail
-
-Use `Effect.fail` only for untagged failure values, such as strings, defects, or ad-hoc values:
-
-```ts
-if (!exists) return yield* Effect.fail(`Public directory does not exist: ${publicDir}`)
-```
-
-For domain errors, define and yield a tagged error schema instead.
 
 ## Discriminate tagged errors by tag property
 
@@ -228,25 +76,18 @@ function getLength(value: unknown): number {
 	return 0
 }
 
-if (value !== undefined && value !== null) {
-	processValue(value)
-}
-
 // Right
 import { Predicate } from "effect"
 
 function getLength(value: unknown): number {
 	if (
+		Predicate.isNotNullish(value) &&
 		Predicate.hasProperty(value, "length") &&
 		Predicate.isNumber(value.length)
 	) {
 		return value.length
 	}
 	return 0
-}
-
-if (Predicate.isNotNullable(value)) {
-	processValue(value)
 }
 ```
 
@@ -284,7 +125,7 @@ const processInput = Effect.fnUntraced(function*(input: unknown) {
 
 ## Decode duration properties to Duration values
 
-When you define schema properties that represent time or duration values, decode the numeric input into a `Duration` value. This lets callers use the `Duration` module APIs directly instead of handling raw numbers and unit conversions manually.
+When you define schema properties that represent time or duration values, decode the numeric input into a `Duration` value. This lets callers use the `Duration` module APIs directly instead of handling raw numbers and time-unit conversions manually.
 
 ```ts
 // Wrong
@@ -306,6 +147,7 @@ const waitTimeout = Effect.fnUntraced(function*(
 import { Duration, Effect, Schema } from "effect"
 
 const ServiceConfigSchema = Schema.Struct({
+	// Can also be `Schema.DurationFromNanos`, `Schema.DurationFromString`, check available APIs to find the best match
 	retryInterval: Schema.DurationFromMillis,
 	timeout: Schema.DurationFromMillis,
 })
@@ -316,34 +158,6 @@ const waitTimeout = Effect.fnUntraced(function*(
 	// Callers receive Duration instances and use Duration APIs directly
 	yield* Effect.sleep(config.retryInterval)
 })
-```
-
-## Use HttpClient instead of raw fetch
-
-Use the `HttpClient` module from `effect` for HTTP requests instead of global `fetch`. `HttpClient` provides typed error channels, tracing integration, scoped lifecycle management, and test layer substitution.
-
-```ts
-// Wrong
-const fetchUser = (id: string) =>
-	Effect.tryPromise({
-		try: async () => {
-			const res = await fetch(`https://api.example.com/users/${id}`)
-			if (!res.ok) {
-				throw new Error(`HTTP error: ${res.status}`)
-			}
-			return await res.json()
-		},
-		catch: (cause) => new FetchError({ cause }),
-	})
-
-// Right
-import { Effect, HttpClient, HttpClientResponse } from "effect"
-
-const fetchUser = (id: string) =>
-	HttpClient.get(`https://api.example.com/users/${id}`).pipe(
-		Effect.andThen(HttpClientResponse.json),
-		Effect.scoped,
-	)
 ```
 
 ## Use Match for multiple consecutive branches
@@ -391,48 +205,3 @@ const resultText = Exit.match(decodedExit, {
 	onFailure: (cause) => `Failure: ${cause}`,
 })
 ```
-
-## Providing Layers
-Avoid providing layers locally where possible and prefer providing all neccessary layers once right before running an Effect.
-
-```ts
-// Wrong
-	const myEffect = Effect.fnUntraced(function*(){
-		const client = (yield* HttpClient.HttpClient).pipe(
-			Effect.provide(FetchHttpClient.layer)
-		)
-
-		// implementation using the client
-	})
-
-	// OR
-	const myEffect = Effect.fnUntraced(function*(){
-		const client = yield* HttpClient.HttpClient
-
-		// implementation using the client
-	}, 
-		(effect) => effect.pipe(Effect.provide(FetchHttpClient.layer))
-	)
-```
-
-```ts
-// Right
-	const myEffect = Effect.fnUntraced(function*(){
-		const client = yield* HttpClient.HttpClient
-
-		// implementation using the client
-	})
-
-	const Application = Effect.gen(function*(){
-		const result = yield* myEffect
-
-		// use the result
-	}).pipe(
-		// Provide layers needed for runtime implementation before running
-		Effect.provide(FetchHttpClient.layer),
-		Effect.runPromise
-	)
-```
-
-Prebuilding and storing references for live and test layers for Service implementations remains an approved pattern. This guideline is aimed for Effects
-that consume a Service in their own implementation rather than acting as the constructor of a given Service.
