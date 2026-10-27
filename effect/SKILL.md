@@ -205,3 +205,97 @@ const resultText = Exit.match(decodedExit, {
 	onFailure: (cause) => `Failure: ${cause}`,
 })
 ```
+
+## Use combinators when applicable
+Effect and its modules ship with powerful combinators that can drastically simplify code making it easier to reason about and write. Before writing a potentially verbose
+unit of code, see if certain combinators can help simplify the work you have to do.
+
+```ts
+// Wrong - manually implementing retrying with jitter
+
+const withRetries = Effect.fnUntraced(function*(fn, options){
+	return yield* Effect.gen(function*(){
+		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const result = yield* Effect.either(operation(attempt));
+		
+      if (Either.isRight(result)) {
+        return result.right;
+      }
+		
+      const error = result.left;
+		
+      if (attempt === maxAttempts) {
+        return yield* Effect.fail(error);
+      }
+		
+      const exponentialDelay = baseDelayMs * Math.pow(2, attempt - 1);     
+      const cappedDelay = Math.min(exponentialDelay, maxDelayMs);
+      const jitteredDelay = Math.random() * cappedDelay;
+		
+      yield* Effect.logWarning(
+        `Attempt ${attempt} failed. Retrying in ${Math.round(jitteredDelay)}ms...`
+      );
+		
+      // Use Effect's native fiber sleep mechanism
+      yield* Effect.sleep(Duration.millis(jitteredDelay));
+    }
+	})
+})
+```
+
+```ts
+// Right - using built-in combinators to simplify the code
+
+const program = Effect.fnUntraced(function*(userId: string){
+	const user = yield* fetchUser(userId)
+	return user
+}, (effect) => effect.pipe(
+	Effect.retry({
+		while: Predicate.isTagged("NetworkError"),
+		times: 3,
+		schedule: Schedule.exponential("200 millis").pipe(
+			Schedule.jittered
+		)
+	})
+))
+```
+
+## Prefer pipelines over nested functions calls
+Always aim to improve code readability and maintainablity by using pipelines for continous transformations instead of nested function calls.
+
+```ts
+// Wrong - verbose and hard to read what the function is doing
+import { String as Str } from "effect"
+
+const slugify = (text: string) => Str.replace(
+		/^-+|-+$/g,
+		"",
+	)(
+		Str.replace(
+			/--+/g,
+			"-",
+		)(
+			Str.replace(
+				/[\s_]+/g,
+				"-",
+			)(Str.replace(/[^\w\s-]/g, "")(Str.replace(/&/g, "and")(Str.trim(Str.toLowerCase(text))))),
+		),
+	)
+```
+
+```ts
+// Right - less verbose, clear chain of events, and easy to digest
+import { String as Str, pipe } from "effect"
+
+const slugify = (text: string) => pipe(
+	text,
+	Str.toLowerCase,
+	Str.trim,
+	Str.replace(/&/g, "and"),
+	Str.replace(/[^\w\s-]/g, ""),
+	Str.replace(/[\s_]+/g, "-"),
+	Str.replace(/--+/g, "-"),
+	Str.replace(/^-+|-+$/g, "")
+)
+
+```
