@@ -334,9 +334,7 @@ const object1: Record<string, number> = {}
 // Returns null or undefined for a missing key and does not have structural equality
 const value1 = map1.get("a")
 object1["some-key"] = 1
-```
 
-```ts
 // Right
 
 const map1 = HashMap.make(["a", 1], ["b", 2])
@@ -349,3 +347,37 @@ const value2 = Record.set(object1, "some-key", 1)
 ```
 
 > [`MutableHashMap`](https://effect.website/docs/v4/api/effect/MutableHashMap) and [`MutableHashSet`](https://effect.website/docs/v4/api/effect/MutableHashSet) exist but should be avoided unless mutating in place is exactly what is needed for that data for performance or implementation reasons.
+
+## Use Option to represent absent values
+Avoid representing absent values with `null` or `undefined` and instead use `Option.none()`. Use its construction/conversion APIs to create optional values from external functions/APIs that return `null` or `undefined` values.
+
+```ts
+// Wrong
+
+type Item = {
+	id: string
+	name: string
+	value: number | null
+}
+declare const getItem(itemId: string): Item | null;
+
+function getValue() {
+	const value = window.localStorage.getItem("key")
+	if (!value) return null
+
+	return value
+}
+
+// Right
+type Item = {
+	id: string
+	name: string
+	value: Option.Option<number>
+}
+declare const getItem(itemId: string): Option.Option<Item>
+
+function getValue() {
+	const value = Option.fromNullishOr(window.localStorage.getItem("key"))
+	return value
+}
+```
