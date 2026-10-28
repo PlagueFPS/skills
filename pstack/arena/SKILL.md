@@ -18,22 +18,22 @@ Every candidate gets the same prompt, so the prompt is the contract.
 
 1. State the artifact each candidate is producing.
 2. Derive the rubric, 3-6 concrete gradeable criteria for what success looks like on *this* task. It is the picker's tool in Phase D. Candidates only see the task.
-3. Pick the runners. Use the `arena runners` line in `pstack-models.md`, resolved against `orchestrator_capabilities`. If the file or that line is missing, run `setup-pstack` or pick one model per available provider from `orchestrator_capabilities`. An `auto` or `inherit-parent` entry in this line or the cross-judge line means the parent model, so omit `model` for it. If `delegate_task` rejects a configured entry, run that seat on the closest valid model of the same provider from its error message and say so. Spawn more runners when the arena covers multiple design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
-4. Give each candidate its own output location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`), per the **separate-before-serializing-shared-state** principle skill. A candidate that needs its own worktree gets one through `t3_thread_launch` with a `workspaceStrategy`. One writer per worktree.
+3. Pick the runners. Use the `arena runners` line in `pstack-models.md`, resolved against `orchestrator_capabilities`. If the file or that line is missing, run `setup-pstack` or pick one model per available provider from `orchestrator_capabilities`. An `auto` or `inherit-parent` entry in this line or the cross-judge line means the parent model, so omit `model` for it. If `delegate_task` rejects the configured provider or model, report it and wait for an authorized choice; do not silently switch. Spawn more runners when the arena covers multiple design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+4. Give each candidate its own output location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`), per the **separate-before-serializing-shared-state** principle skill. A candidate that needs its own worktree uses `delegate_task` with `isolation: "worktree"`. One writer per worktree.
 
 ## Phase B: Fan out
 
 Spawn all N candidates in one turn with `delegate_task`, one per runner entry, each with `mode: "async"`. T3 child agents get only the brief, never the parent's context, so every brief stands alone: the task, the path to the shared grounding, its own output path, and instructions to produce the artifact and a short rationale naming the alternatives it considered and what it rejected.
 
-Drain the candidates with `task_status`. If a candidate produces no output, proceed with N-1 and note the dropout.
+Follow each delegate result's `next`; completion wakes this thread. Do not poll running delegates. If a candidate produces no output, proceed with N-1 and note the dropout.
 
 ## Phase C: Cross-judge
 
-After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `pstack-models.md`. Prefer a different provider from the parent's. Spawn one judge with `delegate_task` on that model. The brief says read-only: inspect only, no writes. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with your reading in Phase D. Don't spawn it while candidates are still writing.
+After all Phase B candidates complete, choose from the `arena cross-judge pool` in `pstack-models.md`. The judge must use a different provider or model family from the parent; `auto` and `inherit-parent` cannot provide that independence. Resolve the pool with `orchestrator_capabilities`. If none is available, skip the judge and disclose that limitation. Do not silently substitute a model. The judge's brief says read-only and includes the rubric and candidate paths. It scores each criterion and recommends a base. It may run alongside your reading in Phase D; it starts only after candidates stop writing.
 
 ## Phase D: Pick a base
 
-Read every candidate end to end before picking. Score each against the rubric criterion by criterion, not on holistic feel, and compare with the cross-judge. Agreement on the base confirms the pick. Disagreement means one of you is biased or the rubric was ambiguous. Read both rationales before deciding.
+Read every candidate end to end before picking. Score each against the rubric criterion by criterion, not on holistic feel, and compare with the cross-judge when Phase C ran one. Agreement on the base confirms the pick. Disagreement means one of you is biased or the rubric was ambiguous. Read both rationales before deciding.
 
 Pick the base a future maintainer can extend most easily without breaking invariants. When two feel tied, prefer the cleaner boundary or smaller API, per the Laziness Protocol.
 
@@ -51,4 +51,4 @@ Verify the synthesized artifact like any other output, per the **prove-it-works*
 
 ## Outputs
 
-One synthesized artifact, with a short synthesis note alongside naming the base and why, the cross-judge's verdict, each graft with its source candidate, what was rejected and why, any convergence or dropouts, and the verification result.
+One synthesized artifact, with a short synthesis note alongside naming the base and why, the cross-judge's verdict or that Phase C skipped the judge, each graft with its source candidate, what was rejected and why, any convergence or dropouts, and the verification result.

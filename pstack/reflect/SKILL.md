@@ -28,7 +28,7 @@ Resolve each model from the role line in `pstack-models.md` via `orchestrator_ca
 | Tooling | `reflect tooling` | `references/tooling-reviewer.md` |
 | Divergent | `reflect judgment, divergent, synthesizer` | `references/divergent-reviewer.md` |
 
-Pass each template verbatim as the brief, substituting the thread id or digest where marked. Drain with `task_status`; reviewers return findings in their task result.
+Pass each template verbatim as the brief, substituting the thread id or digest where marked. Collect reports on completion according to the returned `next`; reviewers return findings in their task result.
 
 ## 3. Synthesize
 
@@ -43,6 +43,8 @@ Move any Accepted item that a lint rule, script, metadata flag, or runtime check
 Present the synthesizer's full Accepted / Rejected / Backlog output and wait for explicit approval before applying any Accepted edit. The user picks the subset and may redirect routings. Skill changes affect every future agent in the org. Do not auto-apply.
 
 File each Backlog item to your team's devex or backlog tracker without waiting. Only the Accepted list waits for approval.
+
+Never edit a skill under `plugins/cache/`. Before approval, show its destination, `.agents/skills/<skill>/` or `~/.agents/skills/<skill>/`. After approval, copy the skill folder there and edit the copy. Never open a PR or push.
 
 Follow each approved row's Routing exactly:
 
