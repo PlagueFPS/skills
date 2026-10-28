@@ -162,7 +162,7 @@ const waitTimeout = Effect.fnUntraced(function*(
 
 ## Use Match for multiple consecutive branches
 
-When you evaluate multiple consecutive branches on the same value or property, use the `Match` module. Use `Match.type` to build a reusable matcher function. Use `Match.value` to match against an existing value in scope. Use `.match()` methods for simple two-branch types like `Exit` or `Option`.
+When you evaluate multiple consecutive branches on the same value or property, use the `Match` module. Use `Match.type` to build a reusable matcher function. Use `Match.value` to match against an existing value in scope. Use `.match()` methods for simple pattern matching for types like `Exit`, `Option`, and `Boolean`.
 
 ```ts
 // Wrong
@@ -179,8 +179,14 @@ function getStatusLabel(status: Status): string {
 	throw new Error("Unhandled status")
 }
 
+const result = condition ? value : otherValue
+const messyResult = condition ? value
+	: condition2 ? value2
+	: condition3 ? value3
+	: fallback
+
 // Right: Match.type for a reusable matcher function
-import { Match } from "effect"
+import { Match, Exit, Boolean as Bool } from "effect"
 
 const getStatusLabel = Match.type<Status>().pipe(
 	Match.tag("Idle", () => "Ready"),
@@ -204,6 +210,22 @@ const resultText = Exit.match(decodedExit, {
 	onSuccess: (value) => `Success: ${value.id}`,
 	onFailure: (cause) => `Failure: ${cause}`,
 })
+
+const result = Bool.match(condition, {
+	onFalse: () => otherValue,
+	onTrue: () => value
+})
+
+const messyResult = Bool.match(condition, {
+	onTrue: () => value,
+	onFalse: () => Bool.match(condition2, {
+		onTrue: () => value2,
+		onFalse: () => Bool.match(condition3, {
+			onTrue: () => value3,
+			onFalse: () => fallback
+		})
+	})
+})
 ```
 
 ## Use combinators when applicable
@@ -217,25 +239,25 @@ const withRetries = Effect.fnUntraced(function*(fn, options){
 	return yield* Effect.gen(function*(){
 		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const result = yield* Effect.either(operation(attempt));
-		
+
       if (Either.isRight(result)) {
         return result.right;
       }
-		
+
       const error = result.left;
-		
+
       if (attempt === maxAttempts) {
         return yield* Effect.fail(error);
       }
-		
-      const exponentialDelay = baseDelayMs * Math.pow(2, attempt - 1);     
+
+      const exponentialDelay = baseDelayMs * Math.pow(2, attempt - 1);
       const cappedDelay = Math.min(exponentialDelay, maxDelayMs);
       const jitteredDelay = Math.random() * cappedDelay;
-		
+
       yield* Effect.logWarning(
         `Attempt ${attempt} failed. Retrying in ${Math.round(jitteredDelay)}ms...`
       );
-		
+
       // Use Effect's native fiber sleep mechanism
       yield* Effect.sleep(Duration.millis(jitteredDelay));
     }
@@ -299,3 +321,31 @@ const slugify = (text: string) => pipe(
 )
 
 ```
+
+## Prefer Effect native data structures
+Instead of using JS globals like `Set`, `Map`, `Object`, or `Boolean`, prefer to use their Effect native equivelent like [`HashSet`](https://effect.website/docs/v4/api/effect/HashSet), [`HashMap`](https://effect.website/docs/v4/api/effect/HashMap), [`Record`](https://effect.website/docs/v4/api/effect/Record), [`Boolean`](https://effect.website/docs/v4/api/effect/Boolean) to take advantage of their powerful APIs/combinators to simplify code, and retain structral equality.
+
+```ts
+// Wrong
+
+const map1 = new Map(["a", 1], ["b", 2])
+const object1: Record<string, number> = {}
+
+// Returns null or undefined for a missing key and does not have structural equality
+const value1 = map1.get("a")
+object1["some-key"] = 1
+```
+
+```ts
+// Right
+
+const map1 = HashMap.make(["a", 1], ["b", 2])
+const object1 = Record.empty<string, number>()
+
+// Returns Option.none() for missing values and Option.some(value) for an existing value while retaining structual equality
+const value1 = HashMap.get(map1, "a")
+// Works with plain JS objects/records as well
+const value2 = Record.set(object1, "some-key", 1)
+```
+
+> [`MutableHashMap`](https://effect.website/docs/v4/api/effect/MutableHashMap) and [`MutableHashSet`](https://effect.website/docs/v4/api/effect/MutableHashSet) exist but should be avoided unless mutating in place is exactly what is needed for that data for performance or implementation reasons.
