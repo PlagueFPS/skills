@@ -77,7 +77,7 @@ For any category with no corresponding MCP available in this session, do not fai
 
 ### Delegation
 
-Spawn one investigator per available category simultaneously, each with `mode: "async"` and the model from the `why investigators` role. Pass each its category's playbook from `references/sources/<category>.md` along with the code anchor and seed context. Drain results with `task_status`.
+Spawn one investigator per available category simultaneously, each with `mode: "async"` and the model from the `why investigators` role. Pass each its category's playbook from `references/sources/<category>.md` along with the code anchor and seed context. Collect completion reports according to the returned `next`; do not poll running delegates.
 
 ## Step 4. Synthesize
 

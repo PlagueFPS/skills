@@ -1,0 +1,8 @@
+{
+  "name": "@pstack/plan-check",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test check-plan.test.ts"
+  }
+}

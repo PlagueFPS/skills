@@ -21,7 +21,7 @@ When in doubt, take the simple path.
 
 ## 2. Explore (complex only)
 
-Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers in a single message (`mode: "async"`, model from the `how explorer` role), each with `references/explorer-prompt.md` and its angle filled in. Drain with `task_status`.
+Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers in a single message (`mode: "async"`, model from the `how explorer` role), each with `references/explorer-prompt.md` and its angle filled in. Follow the delegate result's `next`; completion wakes this thread. Do not poll running delegates.
 
 ## 3. Synthesize (complex only)
 
