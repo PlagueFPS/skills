@@ -16,6 +16,9 @@ skills/
 │   ├── LICENSE
 │   ├── agents/
 │   └── references/
+├── frontend-design/
+│   ├── SKILL.md
+│   └── LICENSE.txt
 ├── javascript-testing-expert/
 │   └── SKILL.md
 └── <new-skill>/
@@ -24,6 +27,9 @@ skills/
 
 The `effect-service-design/` skill comes from [dmmulroy/skills at commit 8603380](https://github.com/dmmulroy/skills/tree/8603380821fee6a77c82639f364ce8fe4f5a92be/effect-service-design).
 It includes the audit reference, agent metadata, and [upstream MIT license](effect-service-design/LICENSE).
+
+The `frontend-design/` skill comes from [anthropics/skills at commit ca45fc4](https://github.com/anthropics/skills/tree/ca45fc496a3436251f191354091d557da31c15b5/skills/frontend-design).
+It includes the unchanged skill instructions and [upstream Apache 2.0 license](frontend-design/LICENSE.txt).
 
 ## Adding a New Skill
 
