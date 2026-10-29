@@ -36,6 +36,8 @@ It includes the unchanged skill instructions and [upstream Apache 2.0 license](f
 The other nine skills in `frontend/` come from [emilkowalski/skills at commit a81dbca](https://github.com/emilkowalski/skills/tree/a81dbca07f2217b7103e510c0f13f8d5b017afc9/skills): `animate`, `animation-performance`, `animation-vocabulary`, `emil-design-eng`, `find-animation-opportunities`, `improve-animations`, `prototype`, `remove-animations`, and `review-animations`.
 They include their supporting files and [upstream MIT license](frontend/LICENSE).
 
+Frontend skill files live in `frontend/`. Top-level relative symlinks expose each skill to harnesses that only scan `<skills-root>/<name>/SKILL.md`; keep these links when adding or moving frontend skills.
+
 ## Adding a New Skill
 
 1. Create a directory for your skill:
