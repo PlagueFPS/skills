@@ -19,8 +19,6 @@ skills/
 ├── frontend-design/
 │   ├── SKILL.md
 │   └── LICENSE.txt
-├── javascript-testing-expert/
-│   └── SKILL.md
 └── <new-skill>/
     └── SKILL.md
 ```
