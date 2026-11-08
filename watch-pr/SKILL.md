@@ -37,21 +37,21 @@ branch conflicts.
 
 ### Everywhere else: `pr-wait`
 
-Wait with `python3 <skill-directory>/scripts/pr-wait.py` from this skill's directory (use its absolute
+Wait with `scripts/pr-wait` from this skill's directory (use its absolute
 path).
 
 ```bash
-python3 <skill-directory>/scripts/pr-wait.py <pr> [--repo owner/name] [--until ready|green|any-change]
+scripts/pr-wait <pr> [--repo owner/name] [--until ready|green|any-change]
 ```
 
 It prints one line per real event. It exits 0 when the `--until` condition is
 met or the PR merges, 1 when it needs you (a required check failed, conflicts,
 unresolved threads, PR closed), and 2 on bad input.
 
-- `ready` (default): required checks green, Greptile or Bugbot reviewed the
+- `ready` (default): required checks green, Greptile or Macroscope reviewed the
   head, and no unresolved threads. Use this to babysit.
 - `green`: required checks only. Use it when the repo has no Greptile or
-  Bugbot.
+  Macroscope.
 - `any-change`: exit on the first event.
 
 In Claude Code, run it with the Monitor tool (`timeout_ms: 3600000`), so each
