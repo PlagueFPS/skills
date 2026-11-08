@@ -11,7 +11,7 @@ Progress and errors that do not end the run go to stderr.
 --until
   green       required checks passed on the current head (every CI check when
               the base branch requires none)
-  ready      green, Greptile or Macroscope reviewed the current head, and no
+  ready      green, Greptile or Bugbot reviewed the current head, and no
               review thread is unresolved (default)
   any-change  stop after the first poll that prints an event
 
@@ -27,8 +27,8 @@ Events
   - all checks finished on the head (one summary line)
   - a new comment, review, thread, or thread reply from someone other than the
     PR author or the gh user
-  - Greptile, Macroscope, or CodeRabbit finished on the head, or a Greptile or
-    Macroscope summary changed after that
+  - Greptile, Bugbot, or CodeRabbit finished on the head, or a Greptile or
+    Bugbot summary changed after that
   - the base branch moved and the new commits touch files in this PR
   - merge state became BEHIND or DIRTY
   - the PR merged or closed
@@ -150,6 +150,17 @@ def bot_name(text: str | None) -> str | None:
     return next((bot for bot in GATING_BOTS + ADVISORY_BOTS if bot in lowered), None)
 
 
+def author_bot(node: Json) -> str | None:
+    login, is_bot = who(node)
+    if not is_bot:
+        return None
+    return {
+        "greptile-apps": "greptile", "greptile-apps[bot]": "greptile",
+        "cursor": "bugbot", "cursor[bot]": "bugbot",
+        "coderabbitai": "coderabbit", "coderabbitai[bot]": "coderabbit",
+    }.get(login.lower())
+
+
 def who(node: Json) -> tuple[str, bool]:
     author = node.get("author") or {}
     return author.get("login") or "ghost", author.get("__typename") == "Bot"
@@ -166,7 +177,7 @@ def snippet(body: str, limit: int = 100) -> str:
 
 
 def verdict(body: str) -> str:
-    """The verdict line of a bot summary (Macroscope, Greptile), if it has one."""
+    """The verdict line of a bot summary (Bugbot, Greptile), if it has one."""
     for line in plain(body).splitlines():
         if re.search(r"verdict|confidence score", line, re.IGNORECASE):
             return snippet(line.replace("*", ""), 80)
@@ -254,7 +265,7 @@ def required_checks(repo: str, base: str) -> set[str]:
             names.update(gh_lines(["api", path, "--jq", jq]))
         except GhError as error:
             if "HTTP 404" not in str(error):  # 404 means no protection, which is normal
-                log(f"could not read required checks from {path}: {error}")
+                raise
     return names
 
 
@@ -314,23 +325,42 @@ class Watcher:
         sys.exit(code)
 
     def fetch_pr(self) -> Json:
-        proc = gh(
-            [
-                "api",
-                "graphql",
-                "-f",
-                f"query={QUERY}",
-                "-f",
-                f"owner={self.owner}",
-                "-f",
-                f"name={self.name}",
-                "-F",
-                f"number={self.pr}",
-            ]
-        )
+        def pages(connection: str, fields: str, node_id: str | None = None) -> list[Json]:
+            cursor = None
+            nodes: list[Json] = []
+            while True:
+                args = ["api", "graphql", "-f", f"owner={self.owner}",
+                        "-f", f"name={self.name}", "-F", f"number={self.pr}"]
+                after = ""
+                if cursor:
+                    after = ", after: " + json.dumps(cursor)
+                selection = f"{connection}(first: 100{after}) {{ nodes {{ {fields} }} pageInfo {{ hasNextPage endCursor }} }}"
+                if node_id:
+                    args = ["api", "graphql"]
+                    query = "query { node(id: " + json.dumps(node_id) + ") { ... on PullRequestReviewThread { " + selection + " } } }"
+                else:
+                    query = "query($owner: String!, $name: String!, $number: Int!) { repository(owner:$owner, name:$name) { pullRequest(number:$number) { " + selection + " } } }"
+                result = json.loads(gh([*args, "-f", f"query={query}"]).stdout)["data"]
+                parent = result["node"] if node_id else result["repository"]["pullRequest"]
+                page = parent[connection]
+                nodes.extend(page["nodes"])
+                if not page["pageInfo"]["hasNextPage"]:
+                    return nodes
+                cursor = page["pageInfo"]["endCursor"]
+
+        proc = gh(["api", "graphql", "-f", f"query={QUERY}",
+                   "-f", f"owner={self.owner}", "-f", f"name={self.name}",
+                   "-F", f"number={self.pr}"])
         data = json.loads(proc.stdout)["data"]
         pr = data["repository"]["pullRequest"]
         pr["viewer"] = data["viewer"]["login"]
+        comment_fields = "id url body author { login __typename }"
+        pr["comments"]["nodes"] = pages("comments", comment_fields)
+        pr["reviews"]["nodes"] = pages("reviews", comment_fields + " state commit { oid }")
+        threads = pages("reviewThreads", "id isResolved path line")
+        for thread in threads:
+            thread["comments"] = {"nodes": pages("comments", comment_fields, thread["id"])}
+        pr["reviewThreads"]["nodes"] = threads
         return pr
 
     def fetch_checks(self) -> dict[str, Json]:
@@ -444,7 +474,7 @@ class Watcher:
         watched = {
             name: c for name, c in checks.items() if bot_name(name) not in ADVISORY_BOTS
         }
-        gate_done = bool(gate) and all(bucket(n) != "pending" for n in gate)
+        gate_done = all(bucket(n) != "pending" for n in gate)
         all_done = gate_done and all(c["bucket"] != "pending" for c in watched.values())
         # Checks appear a few seconds after a push. Two identical polls in a row
         # guard against calling a half-registered set of checks finished.
@@ -458,7 +488,7 @@ class Watcher:
             login, is_bot = who(comment)
             if (
                 login in mine
-                or bot_name(login)
+                or author_bot(comment)
                 or (is_bot and any(b in login for b in STATUS_BOTS))
             ):
                 continue
@@ -508,13 +538,16 @@ class Watcher:
             own_checks = {
                 name: c for name, c in checks.items() if bot_name(name) == bot
             }
-            summaries = [c for c in comments if bot_name(who(c)[0]) == bot]
-            own_reviews = [r for r in reviews if bot_name(who(r)[0]) == bot]
+            summaries = [c for c in comments if author_bot(c) == bot]
+            own_reviews = [r for r in reviews if author_bot(r) == bot]
             on_head = any(
                 (r.get("commit") or {}).get("oid") == head for r in own_reviews
             )
             if own_checks:
-                done = all(c["bucket"] != "pending" for c in own_checks.values())
+                done = all(c["bucket"] == "pass" for c in own_checks.values())
+                interrupted = any(c["bucket"] in (*FAILED, "skipping") for c in own_checks.values())
+                if bot in GATING_BOTS and interrupted and self.until == "ready":
+                    self.finish(1, [f"{bot} review did not succeed on {short}; rerun it before declaring ready"])
             else:
                 done = on_head or any(short in s["body"] for s in summaries)
             seen = bool(own_checks or summaries or own_reviews)
@@ -614,7 +647,7 @@ class Watcher:
             ", ".join(
                 bot_status[b] for b in GATING_BOTS + ADVISORY_BOTS if b in bot_status
             )
-            or "no Greptile or Macroscope yet",
+            or "no Greptile or Bugbot yet",
             f"{len(unresolved)} unresolved threads",
             f"merge state {merge_state}",
         ]
@@ -634,7 +667,7 @@ class Watcher:
                     0,
                     [f"green on {short}: {summary}{self.behind(base, base_oid, head)}"],
                 )
-            # ready waits for Greptile or Macroscope, never for CodeRabbit.
+            # ready waits for Greptile or Bugbot, never for CodeRabbit.
             if green and reviewed:
                 if unresolved:
                     self.finish(
