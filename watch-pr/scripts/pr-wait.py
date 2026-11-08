@@ -325,8 +325,7 @@ class Watcher:
         sys.exit(code)
 
     def fetch_pr(self) -> Json:
-        def pages(connection: str, fields: str, node_id: str | None = None) -> list[Json]:
-            cursor = None
+        def pages(connection: str, fields: str, node_id: str | None = None, cursor: str | None = None) -> list[Json]:
             nodes: list[Json] = []
             while True:
                 args = ["api", "graphql", "-f", f"owner={self.owner}",
@@ -357,9 +356,11 @@ class Watcher:
         comment_fields = "id url body author { login __typename }"
         pr["comments"]["nodes"] = pages("comments", comment_fields)
         pr["reviews"]["nodes"] = pages("reviews", comment_fields + " state commit { oid }")
-        threads = pages("reviewThreads", "id isResolved path line")
+        threads = pages("reviewThreads", "id isResolved path line comments(first: 100) { nodes { " + comment_fields + " } pageInfo { hasNextPage endCursor } }")
         for thread in threads:
-            thread["comments"] = {"nodes": pages("comments", comment_fields, thread["id"])}
+            comments = thread["comments"]
+            if comments["pageInfo"]["hasNextPage"]:
+                comments["nodes"].extend(pages("comments", comment_fields, thread["id"], comments["pageInfo"]["endCursor"]))
         pr["reviewThreads"]["nodes"] = threads
         return pr
 
