@@ -33,7 +33,7 @@ It includes the audit reference, agent metadata, and [upstream MIT license](effe
 The `frontend/frontend-design/` skill comes from [anthropics/skills at commit ca45fc4](https://github.com/anthropics/skills/tree/ca45fc496a3436251f191354091d557da31c15b5/skills/frontend-design).
 It includes the unchanged skill instructions and [upstream Apache 2.0 license](frontend/frontend-design/LICENSE.txt).
 
-The other 18 skills in `frontend/` come from [emilkowalski/skills at commit 715c180](https://github.com/emilkowalski/skills/tree/715c1807e08c497cfd1dc4feb450a2a3300ef2a9/skills). They include their supporting files and [upstream MIT license](frontend/LICENSE). They were installed with `npx skills@latest add emilkowalski/skills --skill '*' --agent codex --copy -y` and copied into `frontend/`.
+The other 18 skills in `frontend/` come from [emilkowalski/skills at commit 715c180](https://github.com/emilkowalski/skills/tree/715c1807e08c497cfd1dc4feb450a2a3300ef2a9/skills). They include their supporting files and [upstream MIT license](frontend/LICENSE). They were installed with `npx skills@latest add emilkowalski/skills --skill '*' --agent codex --copy -y` and copied into `frontend/`, with local corrections to the Swift callback guidance and TypeScript stagger example.
 
 Frontend skills live directly in `frontend/`, alongside the separately sourced `frontend-design` skill.
 

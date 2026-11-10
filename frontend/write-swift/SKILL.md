@@ -144,7 +144,7 @@ Actors guarantee mutual exclusion, not transactions. Between two `await`s on the
 
 **Global and static variables are the most common source of errors.** In order of preference: make it a `let`; put it on `@MainActor`; wrap it in a `Mutex`; `nonisolated(unsafe)`. Note globals in Swift are initialized lazily _and_ atomically — unlike C.
 
-**Bridging old callback APIs:** annotate delegate protocols with `@MainActor` if you own them. If you don't, mark the method `nonisolated` and use `MainActor.assumeIsolated { }` — it asserts rather than hopping, so it traps loudly instead of racing silently. `@preconcurrency` on the conformance is the shorthand for the same thing. Use `@preconcurrency import` to temporarily silence sendability warnings from a module that hasn't migrated; the warnings come back — correctly — once it does.
+**Bridging old callback APIs:** annotate delegate protocols with `@MainActor` if you own them. If you don't, mark the method `nonisolated` and use `Task { @MainActor in ... }` to hop to the main actor, transferring only safely sendable data. Use `MainActor.assumeIsolated { }` or `@preconcurrency` on the conformance only when the API guarantees that the callback already runs on the main actor; these assert isolation and can trap otherwise. Use `@preconcurrency import` to temporarily silence sendability warnings from a module that hasn't migrated; the warnings come back — correctly — once it does.
 
 ---
 

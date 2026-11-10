@@ -7,11 +7,15 @@ Copy-ready patterns for the relationships in [SKILL.md](SKILL.md). The values ar
 For one-shot entrances (a hero, a personal site intro). The delay is computed per element from a custom property, so you don't need one class per item.
 
 ```tsx
+import type { CSSProperties } from "react";
+
+const step = (index: number): CSSProperties & { "--i": number } => ({ "--i": index });
+
 <div className="stagger">
-  <h1 style={{ "--i": 0 }}>Title</h1>
-  <p style={{ "--i": 0 }}>First paragraph, same beat as the title</p>
-  <p style={{ "--i": 1 }}>Supporting paragraph</p>
-  <div style={{ "--i": 2 }}>CTAs</div>
+  <h1 style={step(0)}>Title</h1>
+  <p style={step(0)}>First paragraph, same beat as the title</p>
+  <p style={step(1)}>Supporting paragraph</p>
+  <div style={step(2)}>CTAs</div>
 </div>
 ```
 
