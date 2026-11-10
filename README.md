@@ -33,10 +33,9 @@ It includes the audit reference, agent metadata, and [upstream MIT license](effe
 The `frontend/frontend-design/` skill comes from [anthropics/skills at commit ca45fc4](https://github.com/anthropics/skills/tree/ca45fc496a3436251f191354091d557da31c15b5/skills/frontend-design).
 It includes the unchanged skill instructions and [upstream Apache 2.0 license](frontend/frontend-design/LICENSE.txt).
 
-The other nine skills in `frontend/` come from [emilkowalski/skills at commit a81dbca](https://github.com/emilkowalski/skills/tree/a81dbca07f2217b7103e510c0f13f8d5b017afc9/skills): `animate`, `animation-performance`, `animation-vocabulary`, `emil-design-eng`, `find-animation-opportunities`, `improve-animations`, `prototype`, `remove-animations`, and `review-animations`.
-They include their supporting files and [upstream MIT license](frontend/LICENSE).
+The other 18 skills in `frontend/` come from [emilkowalski/skills at commit 715c180](https://github.com/emilkowalski/skills/tree/715c1807e08c497cfd1dc4feb450a2a3300ef2a9/skills). They include their supporting files and [upstream MIT license](frontend/LICENSE). They were installed with `npx skills@latest add emilkowalski/skills --skill '*' --agent codex --copy -y` and copied into `frontend/`.
 
-Frontend skill files live in `frontend/`. Top-level relative symlinks expose each skill to harnesses that only scan `<skills-root>/<name>/SKILL.md`; keep these links when adding or moving frontend skills.
+Frontend skills live directly in `frontend/`, alongside the separately sourced `frontend-design` skill.
 
 ## Adding a New Skill
 
