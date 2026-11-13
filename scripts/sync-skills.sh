@@ -3,12 +3,17 @@
 # scripts/sync-skills.sh
 # Synchronizes the central agent skills repository with origin/main and
 # ensures all harness symlinks (T3 Code, Claude, Cursor, Codex, OpenCode, Gemini/Antigravity)
-# point to the active skills directory.
+# point to a flat index of skills.
+#
+# Harnesses only discover skills one level deep (<dir>/<name>/SKILL.md), but the
+# repository groups some skills (pstack/, frontend/). The index at $SKILLS_INDEX
+# holds one symlink per skill, so grouped skills stay visible.
 #
 
 set -euo pipefail
 
 SKILLS_REPO="${SKILLS_REPO:-$HOME/code/skills}"
+SKILLS_INDEX="${SKILLS_INDEX:-$HOME/.local/share/skills-index}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_FILE="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 
@@ -63,17 +68,68 @@ ensure_symlink() {
   fi
 }
 
+# Prints the directory of every skill: top-level <name>/SKILL.md and grouped
+# <group>/<name>/SKILL.md. Symlinked directories are not followed, hidden
+# directories are skipped, and a skill's own subdirectories are never treated
+# as skills.
+list_skill_dirs() {
+  find "$SKILLS_REPO" -mindepth 1 -maxdepth 3 \
+    \( -type d \( -name '.*' -o -path "$SKILLS_REPO/scripts" -o -path "$SKILLS_REPO/synced" \) -prune \) \
+    -o \( -type f -name SKILL.md -print \) |
+    while IFS= read -r skill_md; do
+      local dir parent
+      dir="$(dirname "$skill_md")"
+      parent="$(dirname "$dir")"
+      if [ "$dir" = "$SKILLS_REPO" ]; then
+        continue
+      fi
+      if [ "$parent" != "$SKILLS_REPO" ] && [ -f "$parent/SKILL.md" ]; then
+        continue
+      fi
+      echo "$dir"
+    done | sort
+}
+
+build_skill_index() {
+  log "Building skill index at $SKILLS_INDEX..."
+  mkdir -p "$SKILLS_INDEX"
+
+  local -A wanted=()
+  local dir name
+  while IFS= read -r dir; do
+    name="$(basename "$dir")"
+    if [ -n "${wanted[$name]:-}" ]; then
+      log_err "Duplicate skill name '$name': ${wanted[$name]} and $dir. Keeping the first."
+      continue
+    fi
+    wanted[$name]="$dir"
+    ensure_symlink "$dir" "$SKILLS_INDEX/$name"
+  done < <(list_skill_dirs)
+
+  # Remove links to skills that were deleted or renamed. Real files and
+  # directories (e.g. harness-managed .system/) are left alone.
+  local link
+  for link in "$SKILLS_INDEX"/* "$SKILLS_INDEX"/.[!.]*; do
+    if [ -L "$link" ] && [ -z "${wanted[$(basename "$link")]:-}" ]; then
+      log "Removing stale skill link: $link"
+      rm -f "$link"
+    fi
+  done
+}
+
 verify_and_link_harnesses() {
+  build_skill_index
+
   log "Verifying harness symlinks..."
 
   # Standard agent discovery paths
-  ensure_symlink "$SKILLS_REPO" "$HOME/.agents/skills"
-  ensure_symlink "$SKILLS_REPO" "$HOME/.claude/skills"
-  ensure_symlink "$SKILLS_REPO" "$HOME/.cursor/skills"
-  ensure_symlink "$SKILLS_REPO" "$HOME/.codex/skills"
-  ensure_symlink "$SKILLS_REPO" "$HOME/.config/opencode/skills"
+  ensure_symlink "$SKILLS_INDEX" "$HOME/.agents/skills"
+  ensure_symlink "$SKILLS_INDEX" "$HOME/.claude/skills"
+  ensure_symlink "$SKILLS_INDEX" "$HOME/.cursor/skills"
+  ensure_symlink "$SKILLS_INDEX" "$HOME/.codex/skills"
+  ensure_symlink "$SKILLS_INDEX" "$HOME/.config/opencode/skills"
   ensure_symlink "$SKILLS_REPO" "$HOME/skills"
-  ensure_symlink "$SKILLS_REPO" "$HOME/.gemini/config/skills"
+  ensure_symlink "$SKILLS_INDEX" "$HOME/.gemini/config/skills"
   ensure_symlink "$SKILLS_REPO/pstack" "$HOME/.gemini/antigravity-cli/skills"
 
   # T3 Code Antigravity providers
@@ -247,20 +303,22 @@ show_status() {
   fi
 
   echo ""
-  echo "=== Top-Level Skills Available ==="
-  for dir in "$SKILLS_REPO"/*; do
-    if [ -d "$dir" ] && [ -f "$dir/SKILL.md" ]; then
-      echo "  - $(basename "$dir")"
+  echo "=== Skill Index ($SKILLS_INDEX) ==="
+  local link indexed=0 broken=0
+  for link in "$SKILLS_INDEX"/*; do
+    if [ -L "$link" ]; then
+      indexed=$((indexed + 1))
+      if [ ! -f "$link/SKILL.md" ]; then
+        broken=$((broken + 1))
+        echo "  ✗ $(basename "$link") -> $(readlink "$link") (missing SKILL.md)"
+      fi
     fi
   done
-  if [ -d "$SKILLS_REPO/pstack" ]; then
-    local pstack_count=0
-    for dir in "$SKILLS_REPO/pstack"/*; do
-      if [ -d "$dir" ] && [ -f "$dir/SKILL.md" ]; then
-        pstack_count=$((pstack_count + 1))
-      fi
-    done
-    echo "  - pstack ($pstack_count skills)"
+  local found
+  found="$(list_skill_dirs | wc -l)"
+  echo "  Indexed: $indexed, found in repository: $found, broken: $broken"
+  if [ "$indexed" != "$found" ] || [ "$broken" != 0 ]; then
+    echo "  Run $(basename "$0") --skip-git to rebuild the index."
   fi
 
   echo ""

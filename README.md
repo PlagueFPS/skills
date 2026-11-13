@@ -71,7 +71,7 @@ To ensure new skills are automatically pulled and made immediately available acr
    This does the following:
    - Symlinks `skills-sync` into `~/.local/bin/skills-sync`
    - Installs a systemd user timer (`skills-sync.timer`) that checks `origin/main` every 2 minutes and fast-forwards `main` in `~/code/skills`
-   - Configures a git `post-merge` hook so local merges automatically verify harness symlinks
+   - Configures a git `post-merge` hook so local merges automatically rebuild the skill index and verify harness symlinks
 
 2. **Check status anytime:**
    ```bash
@@ -85,11 +85,13 @@ To ensure new skills are automatically pulled and made immediately available acr
 
 ## Global Provider Links
 
-This repository is symlinked to the following discovery paths:
+Harnesses only discover skills one level deep, but this repository groups some skills (`pstack/`, `frontend/`). Each sync rebuilds a flat index at `~/.local/share/skills-index` with one symlink per skill, top-level or grouped, and removes links to deleted skills. Group skills freely; no top-level symlinks are needed. Skill names must be unique across groups.
+
+The index is symlinked to the following discovery paths:
 - **T3 Code / Antigravity:** `~/.t3/userdata/providers/antigravity/*/config/skills` & `~/.gemini/config/skills`
 - **Claude Code:** `~/.claude/skills`
 - **Cursor:** `~/.cursor/skills`
 - **OpenAI Codex:** `~/.codex/skills`
 - **OpenCode:** `~/.config/opencode/skills`
 - **Standard Agent Skills:** `~/.agents/skills`
-- **Convenience Link:** `~/skills` -> `~/code/skills`
+- **Convenience Link:** `~/skills` -> `~/code/skills` (the repository itself)
