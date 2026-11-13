@@ -317,32 +317,39 @@ show_status() {
 
   echo ""
   echo "=== Skill Index ($SKILLS_INDEX) ==="
+  local skill_dirs=""
+  if [ ! -d "$SKILLS_REPO" ] || ! skill_dirs="$(list_skill_dirs)" || [ -z "$skill_dirs" ]; then
+    echo "  ✗ Could not scan $SKILLS_REPO for skills; index status unknown."
+    skill_dirs=""
+  fi
   local -A expected=()
   local dir name link found=0 problems=0
-  while IFS= read -r dir; do
-    [ -n "$dir" ] || continue
-    name="$(basename "$dir")"
-    [ -z "${expected[$name]:-}" ] || continue
-    expected[$name]="$dir"
-    found=$((found + 1))
-    link="$SKILLS_INDEX/$name"
-    if [ ! -L "$link" ]; then
-      problems=$((problems + 1))
-      echo "  ✗ $name (not indexed)"
-    elif [ "$(readlink "$link")" != "$dir" ]; then
-      problems=$((problems + 1))
-      echo "  ✗ $name -> $(readlink "$link") (expected $dir)"
+  if [ -n "$skill_dirs" ]; then
+    while IFS= read -r dir; do
+      [ -n "$dir" ] || continue
+      name="$(basename "$dir")"
+      [ -z "${expected[$name]:-}" ] || continue
+      expected[$name]="$dir"
+      found=$((found + 1))
+      link="$SKILLS_INDEX/$name"
+      if [ ! -L "$link" ]; then
+        problems=$((problems + 1))
+        echo "  ✗ $name (not indexed)"
+      elif [ "$(readlink "$link")" != "$dir" ]; then
+        problems=$((problems + 1))
+        echo "  ✗ $name -> $(readlink "$link") (expected $dir)"
+      fi
+    done <<< "$skill_dirs"
+    for link in "$SKILLS_INDEX"/* "$SKILLS_INDEX"/.[!.]*; do
+      if [ -L "$link" ] && [ -z "${expected[$(basename "$link")]:-}" ]; then
+        problems=$((problems + 1))
+        echo "  ✗ $(basename "$link") -> $(readlink "$link") (stale)"
+      fi
+    done
+    echo "  Skills in repository: $found, index problems: $problems"
+    if [ "$problems" != 0 ]; then
+      echo "  Run $(basename "$0") --skip-git to rebuild the index."
     fi
-  done < <(list_skill_dirs || true)
-  for link in "$SKILLS_INDEX"/* "$SKILLS_INDEX"/.[!.]*; do
-    if [ -L "$link" ] && [ -z "${expected[$(basename "$link")]:-}" ]; then
-      problems=$((problems + 1))
-      echo "  ✗ $(basename "$link") -> $(readlink "$link") (stale)"
-    fi
-  done
-  echo "  Skills in repository: $found, index problems: $problems"
-  if [ "$problems" != 0 ]; then
-    echo "  Run $(basename "$0") --skip-git to rebuild the index."
   fi
 
   echo ""
