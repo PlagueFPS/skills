@@ -92,6 +92,19 @@ list_skill_dirs() {
 
 build_skill_index() {
   log "Building skill index at $SKILLS_INDEX..."
+
+  # Scan before touching the index: a failed or empty scan must not prune
+  # working links.
+  local skill_dirs
+  if [ ! -d "$SKILLS_REPO" ] || ! skill_dirs="$(list_skill_dirs)"; then
+    log_err "Could not scan $SKILLS_REPO for skills. Leaving the index unchanged."
+    return 1
+  fi
+  if [ -z "$skill_dirs" ]; then
+    log_err "No skills found in $SKILLS_REPO. Leaving the index unchanged."
+    return 1
+  fi
+
   mkdir -p "$SKILLS_INDEX"
 
   local -A wanted=()
@@ -104,7 +117,7 @@ build_skill_index() {
     fi
     wanted[$name]="$dir"
     ensure_symlink "$dir" "$SKILLS_INDEX/$name"
-  done < <(list_skill_dirs)
+  done <<< "$skill_dirs"
 
   # Remove links to skills that were deleted or renamed. Real files and
   # directories (e.g. harness-managed .system/) are left alone.
@@ -304,20 +317,31 @@ show_status() {
 
   echo ""
   echo "=== Skill Index ($SKILLS_INDEX) ==="
-  local link indexed=0 broken=0
-  for link in "$SKILLS_INDEX"/*; do
-    if [ -L "$link" ]; then
-      indexed=$((indexed + 1))
-      if [ ! -f "$link/SKILL.md" ]; then
-        broken=$((broken + 1))
-        echo "  ✗ $(basename "$link") -> $(readlink "$link") (missing SKILL.md)"
-      fi
+  local -A expected=()
+  local dir name link found=0 problems=0
+  while IFS= read -r dir; do
+    [ -n "$dir" ] || continue
+    name="$(basename "$dir")"
+    [ -z "${expected[$name]:-}" ] || continue
+    expected[$name]="$dir"
+    found=$((found + 1))
+    link="$SKILLS_INDEX/$name"
+    if [ ! -L "$link" ]; then
+      problems=$((problems + 1))
+      echo "  ✗ $name (not indexed)"
+    elif [ "$(readlink "$link")" != "$dir" ]; then
+      problems=$((problems + 1))
+      echo "  ✗ $name -> $(readlink "$link") (expected $dir)"
+    fi
+  done < <(list_skill_dirs || true)
+  for link in "$SKILLS_INDEX"/* "$SKILLS_INDEX"/.[!.]*; do
+    if [ -L "$link" ] && [ -z "${expected[$(basename "$link")]:-}" ]; then
+      problems=$((problems + 1))
+      echo "  ✗ $(basename "$link") -> $(readlink "$link") (stale)"
     fi
   done
-  local found
-  found="$(list_skill_dirs | wc -l)"
-  echo "  Indexed: $indexed, found in repository: $found, broken: $broken"
-  if [ "$indexed" != "$found" ] || [ "$broken" != 0 ]; then
+  echo "  Skills in repository: $found, index problems: $problems"
+  if [ "$problems" != 0 ]; then
     echo "  Run $(basename "$0") --skip-git to rebuild the index."
   fi
 
