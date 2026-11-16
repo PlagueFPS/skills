@@ -16,7 +16,9 @@ Call `orchestrator_capabilities`. It lists the providers and models you can pass
 
 ### 2. Load current state
 
-The roles are the labels shown in step 5. If `pstack-models.md` already exists at the chosen location, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from the defaults in step 3(b). A line whose role is not in step 5, such as `how critics`, is from a retired role. Drop it.
+The roles are the labels shown in step 5. If `pstack-models.md` already exists at the chosen location, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from the defaults in step 3(b). A line whose role is not in step 5, such as `how explorer` or `why investigators`, is from a retired role. Drop it.
+
+A file without the `# defaults: 2` line comes from an older setup, which gave code roles the fastest coding model. Before step 3, move each of `feature, refactoring`, `bug-fix`, `perf-issue`, and `hillclimb` that still holds that older default to its step 3(b) default, keep every value the user chose, and tell the user which values you replaced.
 
 ### 3. Budget, map, and confirm
 
@@ -27,11 +29,11 @@ The roles are the labels shown in step 5. If `pstack-models.md` already exists a
 - `medium — high reasoning`
 - `small — medium reasoning`
 
-**(b) Apply it.** Build the working table. On a fresh run, give code roles (`feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`) and the explorer, investigator, and swarm roles the fastest strong coding model detected. Give `judgment and prose`, `hardest tasks`, the explainer, the synthesizers, and `reflect tooling` the most capable model detected. Fill each panel role with one entry per distinct provider detected, up to three. On a re-run, keep any role the user changed.
+**(b) Apply it.** Build the working table. On a fresh run, give code roles (`feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`), `judgment and prose`, and `reflect judgment, divergent, synthesizer` a strong general model. Give `hardest tasks` the most capable model detected. Give `swarm workers` and `reflect tooling` a fast strong model. Fill each panel role with one entry per distinct vendor detected, up to three, so a panel stays diverse. On a re-run, keep any role the user changed.
 
-When the catalog exposes reasoning options for a model, set each real entry's effort option from the budget: `unlimited` takes the highest option, and `large`, `medium`, and `small` take `xhigh`, `high`, or `medium`. The ladder is `max` > `xhigh` > `high` > `medium` > `low`. If the model does not expose the target, use the highest option at or below it, else mark the role as needing a choice. `inherit-parent` does not change. When the catalog exposes no reasoning options, map roles only and drop effort tokens; the budget label is still recorded.
+When the catalog exposes reasoning options for a model, each role has a target effort, which is its base effort moved by the budget. The base is `max` for `hardest tasks`, `high` for `swarm workers`, `reflect tooling`, and every panel entry, and `xhigh` for every other role. `large` keeps the base, `unlimited` raises it one step, `medium` lowers it one step, and `small` lowers it two steps, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. A target at either end of the ladder stays there. Set each real entry's effort option to its role's target. Most roles have an `xhigh` base, and each budget label names where those land. If the model does not expose the target, use the highest option at or below it, else mark the role as needing a choice. `inherit-parent` does not change. When the catalog exposes no reasoning options, map roles only and drop effort tokens; the budget label is still recorded.
 
-**(c) Show the roles and confirm.** Show every role with its model, marking any entry not in the detected set as needing a choice. Also list each line step 2 dropped. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` (the role runs on the parent thread's model, so omit the model in `delegate_task`) as the options. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one `delegate_task` runs per entry, `inherit-parent` entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena selects one value from it whose provider differs from the parent's when possible. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.
+**(c) Show the roles and confirm.** Show every role with its model, marking any entry not in the detected set as needing a choice. Also list each line step 2 dropped. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` (the role runs on the parent thread's model, so omit the model in `delegate_task`) as the options. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one `delegate_task` runs per entry, `inherit-parent` entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena selects one value from it whose vendor differs from the parent's when possible, so order it by preference. Two models from the same vendor count as one vendor. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.
 
 ### 4. Validate
 
@@ -39,22 +41,19 @@ Every real entry written must be in the `orchestrator_capabilities` result, unde
 
 ### 5. Write the file
 
-Write `pstack-models.md` with a `# budget` line with the chosen label and its target effort, and one line per role, using the same labels poteto-mode uses. Write each entry as `<providerInstanceId>/<model>`, followed by its effort option in parentheses when step 3(b) set one. Overwrite the whole file so re-runs stay idempotent. Shape:
+Write `pstack-models.md` with the `# defaults: 2` line, a `# budget` line with the chosen label and the effort that label names, and one line per role, using the same labels poteto-mode uses. Write each entry as `<providerInstanceId>/<model>`, followed by its effort option in parentheses when step 3(b) set one. Overwrite the whole file so re-runs stay idempotent. Shape:
 
 ```
 # pstack model configuration. One line per role. Delete a line to fall back to the skill default.
 # `inherit-parent` as a value: the role runs on the parent thread's model (omit the delegate_task model). Entries in a panel list still count toward its fan-out.
-# budget: unlimited (max)
+# defaults: 2
+# budget: large (xhigh)
 feature, refactoring: <providerInstanceId>/<model> (<effort>)
 bug-fix: <providerInstanceId>/<model> (<effort>)
 perf-issue: <providerInstanceId>/<model> (<effort>)
 hillclimb: <providerInstanceId>/<model> (<effort>)
 judgment and prose: <providerInstanceId>/<model> (<effort>)
 hardest tasks: <providerInstanceId>/<model> (<effort>)
-how explorer: <providerInstanceId>/<model> (<effort>)
-how explainer: <providerInstanceId>/<model> (<effort>)
-why investigators: <providerInstanceId>/<model> (<effort>)
-why synthesizer: <providerInstanceId>/<model> (<effort>)
 reflect tooling: <providerInstanceId>/<model> (<effort>)
 reflect judgment, divergent, synthesizer: <providerInstanceId>/<model> (<effort>)
 arena runners: <entry>, <entry>, <entry>

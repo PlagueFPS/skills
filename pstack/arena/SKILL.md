@@ -29,7 +29,7 @@ Follow each delegate result's `next`; completion wakes this thread. Do not poll 
 
 ## Phase C: Cross-judge
 
-After all Phase B candidates complete, choose from the `arena cross-judge pool` in `pstack-models.md`. The judge must use a different provider or model family from the parent; `auto` and `inherit-parent` cannot provide that independence. Resolve the pool with `orchestrator_capabilities`. If none is available, skip the judge and disclose that limitation. Do not silently substitute a model. The judge's brief says read-only and includes the rubric and candidate paths. It scores each criterion and recommends a base. It may run alongside your reading in Phase D; it starts only after candidates stop writing.
+After all Phase B candidates complete, choose from the `arena cross-judge pool` in `pstack-models.md`. The judge must come from a different vendor than the parent, so two models from the same vendor (for example, two Claude models) do not count as independent; `auto` and `inherit-parent` cannot provide that independence. Resolve the pool with `orchestrator_capabilities`. If none is available, skip the judge and disclose that limitation. Do not silently substitute a model. The judge's brief says read-only and includes the rubric and candidate paths. It scores each criterion and recommends a base. It may run alongside your reading in Phase D; it starts only after candidates stop writing.
 
 ## Phase D: Pick a base
 
