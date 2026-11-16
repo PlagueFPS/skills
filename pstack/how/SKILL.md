@@ -6,31 +6,16 @@ disable-model-invocation: true
 
 # How
 
-Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
-
-Every spawn below is a `delegate_task` with a self-contained brief; the child gets only the brief, never this conversation. Each brief says it is read-only: inspect only, no writes, no git commands. Resolve each role's model from `pstack-models.md` via `orchestrator_capabilities`. Never hardcode a slug. If the role line is missing, run `setup-pstack` or use the parent's model. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
-
-## 1. Assess complexity
+Explore the codebase to answer "how does X work?" questions.
 
 If the scope is ambiguous, state your interpretation and explore. The user can redirect.
 
-- **Simple** (a single module, a small utility, a narrow question such as "how does function X work"): no explorers. Spawn one explainer (model from the `how explainer` role) that explores and explains in one pass, built from `references/explainer-prompt.md` without the explorer-findings section. Go to step 4.
-- **Complex** (a subsystem spanning multiple files or services, a cross-cutting feature, a full architectural overview): go to step 2.
+## 1. Explain
 
-When in doubt, take the simple path.
+Spawn one `delegate_task` on the parent's model (omit `model`) that explores and explains in one pass. The child gets only the brief, never this conversation, so give it the user's question and this brief:
 
-## 2. Explore (complex only)
+> You are writing an architectural explanation for a senior engineer. Explore the codebase and write an explanation that a senior engineer unfamiliar with this area could read and walk away with a solid mental model. They should understand the architecture well enough to start working in it confidently. You have read-only access to the codebase: inspect only, no writes, no git commands that change state.
 
-Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers in a single message (`mode: "async"`, model from the `how explorer` role), each with `references/explorer-prompt.md` and its angle filled in. Follow the delegate result's `next`; completion wakes this thread. Do not poll running delegates.
+## 2. Present
 
-## 3. Synthesize (complex only)
-
-Once all explorers have returned, spawn one explainer (model from the `how explainer` role) with `references/explainer-prompt.md` and every explorer's findings filled in.
-
-## 4. Present
-
-Present the explainer's output. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.
-
-## Output format
-
-The explanation uses the sections defined in `references/explainer-prompt.md`, dropping any that do not apply: Overview, Key Concepts, How It Works, Where Things Live, Gotchas.
+Present the subagent's output. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.
